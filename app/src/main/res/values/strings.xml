@@ -1,3 +1,26 @@
 <resources>
     <string name="app_name">PagoFlex</string>
+
+    <string name="titulo_app">PagoFlex</string>
+    <string name="centro_ayuda">Centro de ayuda</string>
+    <string name="reportar_problema">Reportar un problema</string>
+    <string name="reportar_descripcion">Cuéntanos qué ocurrió para poder ayudarte.</string>
+
+    <string name="tipo_problema">Tipo de problema</string>
+    <string name="selecciona_opcion">Selecciona una opción</string>
+    <string name="error_tipo">Selecciona el tipo de problema.</string>
+
+    <string name="compromiso_relacionado">Compromiso relacionado</string>
+    <string name="selecciona_compromiso">Selecciona un compromiso</string>
+    <string name="error_compromiso">Selecciona un compromiso.</string>
+
+    <string name="descripcion_problema">Describe el problema</string>
+    <string name="placeholder_descripcion">Explica qué sucedió...</string>
+    <string name="error_descripcion">Escribe una descripción de al menos 10 caracteres.</string>
+
+    <string name="enviar_reporte">Enviar reporte</string>
+
+    <string name="reporte_recibido">Reporte recibido</string>
+    <string name="reporte_validado">El formulario se validó correctamente. Falta conectar el guardado del reporte con la base de datos.</string>
+    <string name="aceptar">Aceptar</string>
 </resources>
