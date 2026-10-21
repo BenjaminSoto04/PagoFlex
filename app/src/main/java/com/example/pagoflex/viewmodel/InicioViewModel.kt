@@ -9,7 +9,6 @@ import kotlinx.coroutines.flow.asStateFlow
 class InicioViewModel : ViewModel() {
 
     private val inicioCompromisos = Compromiso(
-        folio = "12345",
-        nombreEmpresa = ""
+        folio = "12345"
     )
 }
