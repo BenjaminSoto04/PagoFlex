@@ -3,8 +3,8 @@ package com.example.pagoflex.model
 data class Compromiso(
     val id: Int,
     val folio: String,
-    val empresaId: Int,
     val usuarioId: Int,
+    val empresaId: Int,
     val nombreEmpresa: String,
     val concepto: String,
     val numeroCuota: Int?,

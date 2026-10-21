@@ -2,12 +2,14 @@ package com.example.pagoflex.ui.styles
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ButtonColors
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ButtonElevation
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.dp
 import com.example.pagoflex.ui.theme.Blanco
@@ -33,13 +35,15 @@ object EstilosBoton {
     )
 
     @Composable
-    fun sombraBoton(): ButtonElevation = ButtonDefaults.buttonElevation(
+    fun sombra(): ButtonElevation = ButtonDefaults.buttonElevation(
         defaultElevation = Dimens.elevacionBoton,
         pressedElevation = 1.dp
     )
 
     @Composable
-    fun bordeBoton(): BorderStroke = BorderStroke(
+    fun bordeSecundario(): BorderStroke = BorderStroke(
         Dimens.bordeBoton, MaterialTheme.colorScheme.primary
     )
 }
+
+fun Modifier.estiloAltoBoton(): Modifier = this.height(Dimens.alturaBoton)
