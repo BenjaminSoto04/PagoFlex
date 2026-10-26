@@ -10,14 +10,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+
 import com.example.pagoflex.data.DatosSimulados
 import com.example.pagoflex.model.EstadoCompromiso
 import com.example.pagoflex.viewmodel.PagosViewModel
+
 import java.text.NumberFormat
 import java.time.LocalDate
+import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import java.util.Locale
-
 
 @Composable
 fun InicioScreen(
@@ -26,37 +28,56 @@ fun InicioScreen(
     onVerHistorial: () -> Unit
 ) {
 
-    // Observar los compromisos del ViewModel
+    // 1. Observar los compromisos del ViewModel
     val compromisos by pagosViewModel
         .compromisos
         .collectAsStateWithLifecycle()
 
-    // Compromisos del usuario actual
+    // 2. Obtener compromisos del usuario actual
     val misCompromisos = compromisos.filter {
         it.idUsuario == DatosSimulados.ID_USUARIO_ACTUAL
     }
 
-    // Compromisos que todavía se deben pagar
+    // 3. Obtener compromisos activos
     val activos = misCompromisos.filter {
         it.estado == EstadoCompromiso.PENDIENTE ||
                 it.estado == EstadoCompromiso.VENCIDO
     }
 
-    // Total por pagar
+    // 4. Calcular el total general pendiente
     val totalPendiente = activos.sumOf {
         it.monto + it.recargoAplicado
     }
 
-    // Cantidad de compromisos vencidos
+    // 5. Formato de las fechas
+    val formatoFecha =
+        DateTimeFormatter.ofPattern("dd-MM-uuuu")
+
+    // 6. Obtener el mes actual
+    val mesActual = YearMonth.now()
+
+    // 7. Filtrar compromisos del mes actual
+    val compromisosDelMes = activos.filter { compromiso ->
+
+        val fechaVencimiento = LocalDate.parse(
+            compromiso.fechaVencimiento,
+            formatoFecha
+        )
+
+        YearMonth.from(fechaVencimiento) == mesActual
+    }
+
+    // 8. Calcular el total del mes
+    val totalDelMes = compromisosDelMes.sumOf {
+        it.monto + it.recargoAplicado
+    }
+
+    // 9. Contar compromisos vencidos
     val cantidadVencidos = activos.count {
         it.estado == EstadoCompromiso.VENCIDO
     }
 
-    // Formato de las fechas
-    val formatoFecha =
-        DateTimeFormatter.ofPattern("dd-MM-uuuu")
-
-    // Próximo compromiso que vencerá
+    // 10. Obtener el próximo vencimiento
     val proximoCompromiso = activos
         .filter {
             it.estado == EstadoCompromiso.PENDIENTE
@@ -68,14 +89,18 @@ fun InicioScreen(
             )
         }
 
-    // Formato de pesos chilenos
+    // 11. Formato de pesos chilenos
     val formatoPesos = NumberFormat.getNumberInstance(
         Locale("es", "CL")
     )
 
-    val totalFormateado =
+    val totalGeneralFormateado =
         "$ ${formatoPesos.format(totalPendiente)}"
 
+    val totalMesFormateado =
+        "$ ${formatoPesos.format(totalDelMes)}"
+
+    // 12. Interfaz de usuario
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -85,7 +110,7 @@ fun InicioScreen(
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
 
-        // Nombre de la aplicación
+        // NOMBRE DE LA APLICACIÓN
         Text(
             text = "PagoFlex",
             style = MaterialTheme.typography.headlineMedium,
@@ -97,9 +122,11 @@ fun InicioScreen(
             style = MaterialTheme.typography.bodyMedium
         )
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(
+            modifier = Modifier.height(8.dp)
+        )
 
-        // Saludo al usuario
+        // SALUDO AL USUARIO
         Text(
             text = "¡Hola, Camila! 👋",
             style = MaterialTheme.typography.headlineSmall,
@@ -111,9 +138,10 @@ fun InicioScreen(
             style = MaterialTheme.typography.bodyMedium
         )
 
-        // Tarjeta del total pendiente
+        // TARJETA DEL TOTAL GENERAL
         Card(
             modifier = Modifier.fillMaxWidth(),
+
             colors = CardDefaults.cardColors(
                 containerColor =
                     MaterialTheme.colorScheme.primaryContainer
@@ -122,17 +150,18 @@ fun InicioScreen(
 
             Column(
                 modifier = Modifier.padding(20.dp),
+
                 verticalArrangement =
                     Arrangement.spacedBy(8.dp)
             ) {
 
                 Text(
-                    text = "Total por pagar",
+                    text = "Total general por pagar",
                     style = MaterialTheme.typography.titleMedium
                 )
 
                 Text(
-                    text = totalFormateado,
+                    text = totalGeneralFormateado,
                     style = MaterialTheme.typography.headlineLarge,
                     fontWeight = FontWeight.Bold
                 )
@@ -144,21 +173,58 @@ fun InicioScreen(
             }
         }
 
-        // Tarjeta del próximo vencimiento
+        // NUEVA TARJETA: TOTAL DEL MES ACTUAL
         Card(
             modifier = Modifier.fillMaxWidth()
         ) {
 
             Column(
-                modifier = Modifier.padding(16.dp)
+                modifier = Modifier.padding(20.dp),
+
+                verticalArrangement =
+                    Arrangement.spacedBy(8.dp)
+            ) {
+
+                Text(
+                    text = "Compromisos del mes actual",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+
+                Text(
+                    text = totalMesFormateado,
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold
+                )
+
+                Text(
+                    text = "${compromisosDelMes.size} compromisos con vencimiento este mes",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+
+                Text(
+                    text = "Período: ${mesActual.monthValue.toString().padStart(2, '0')}-${mesActual.year}",
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+        }
+
+        // TARJETA DEL PRÓXIMO VENCIMIENTO
+        Card(
+            modifier = Modifier.fillMaxWidth()
+        ) {
+
+            Column(
+                modifier = Modifier.padding(16.dp),
+
+                verticalArrangement =
+                    Arrangement.spacedBy(8.dp)
             ) {
 
                 Text(
                     text = "Próximo vencimiento",
                     style = MaterialTheme.typography.titleMedium
                 )
-
-                Spacer(modifier = Modifier.height(8.dp))
 
                 Text(
                     text = proximoCompromiso
@@ -179,21 +245,22 @@ fun InicioScreen(
             }
         }
 
-        // Tarjeta de compromisos vencidos
+        // TARJETA DE COMPROMISOS VENCIDOS
         Card(
             modifier = Modifier.fillMaxWidth()
         ) {
 
             Column(
-                modifier = Modifier.padding(16.dp)
+                modifier = Modifier.padding(16.dp),
+
+                verticalArrangement =
+                    Arrangement.spacedBy(8.dp)
             ) {
 
                 Text(
                     text = "Compromisos vencidos",
                     style = MaterialTheme.typography.titleMedium
                 )
-
-                Spacer(modifier = Modifier.height(8.dp))
 
                 Text(
                     text = cantidadVencidos.toString(),
@@ -212,9 +279,11 @@ fun InicioScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(
+            modifier = Modifier.height(8.dp)
+        )
 
-        // Botón de compromisos
+        // BOTÓN MIS COMPROMISOS
         Button(
             onClick = onVerCompromisos,
             modifier = Modifier.fillMaxWidth()
@@ -223,7 +292,7 @@ fun InicioScreen(
             Text("Mis compromisos")
         }
 
-        // Botón del historial
+        // BOTÓN HISTORIAL
         OutlinedButton(
             onClick = onVerHistorial,
             modifier = Modifier.fillMaxWidth()

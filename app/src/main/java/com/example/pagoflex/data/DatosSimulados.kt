@@ -84,6 +84,51 @@ object DatosSimulados {
             fechaVencimiento = "25-10-2026",
             estado = EstadoCompromiso.PENDIENTE,
             recargoAplicado = 0
+        ),
+
+        Compromiso(
+            id = 89L,
+            folio = "CP-2026-0089",
+            idUsuario = 1L,
+            idEmpresa = 8L,
+            empresa = "Plaza Oriente",
+            concepto = "Arriendo departamento septiembre",
+            numeroCuota = 9,
+            totalCuotas = 12,
+            monto = 520000,
+            fechaVencimiento = "10-09-2026",
+            estado = EstadoCompromiso.PAGADO,
+            recargoAplicado = 0
+        ),
+
+        Compromiso(
+            id = 90L,
+            folio = "CP-2026-0090",
+            idUsuario = 1L,
+            idEmpresa = 6L,
+            empresa = "Club Los Halcones",
+            concepto = "Cuota social septiembre",
+            numeroCuota = 9,
+            totalCuotas = 12,
+            monto = 15000,
+            fechaVencimiento = "05-09-2026",
+            estado = EstadoCompromiso.PAGADO,
+            recargoAplicado = 2000
+        ),
+
+        Compromiso(
+            id = 91L,
+            folio = "CP-2026-0091",
+            idUsuario = 1L,
+            idEmpresa = 5L,
+            empresa = "Manos Abiertas",
+            concepto = "Aporte mensual septiembre",
+            numeroCuota = null,
+            totalCuotas = null,
+            monto = 10000,
+            fechaVencimiento = "15-09-2026",
+            estado = EstadoCompromiso.PAGADO,
+            recargoAplicado = 0
         )
     )
 

@@ -21,7 +21,7 @@ class PagosViewModel : ViewModel() {
     private val formatoFechaHora =
         DateTimeFormatter.ofPattern("dd-MM-uuuu HH:mm")
 
-    // Recargos fijos de las empresas de prueba
+    // Recargos fijos de las empresas ficticias
     private val recargosEmpresas = mapOf(
         3L to 12000,
         5L to 0,
@@ -74,6 +74,13 @@ class PagosViewModel : ViewModel() {
         }
 
         return compromiso
+    }
+
+    fun refrescarVencimientos() {
+
+        _compromisos.value = _compromisos.value.map {
+            actualizarVencimiento(it)
+        }
     }
 
     // Obtener compromisos del usuario actual
@@ -154,9 +161,11 @@ class PagosViewModel : ViewModel() {
         compromiso: Compromiso
     ): String? {
 
+        // Buscar el compromiso actualizado
         val actual = obtenerCompromiso(compromiso.id)
             ?: return "Compromiso no encontrado"
 
+        // Validar el estado
         when (actual.estado) {
 
             EstadoCompromiso.PAGADO ->
@@ -168,38 +177,55 @@ class PagosViewModel : ViewModel() {
             EstadoCompromiso.EN_REVISION ->
                 return "Este compromiso está en revisión"
 
-            else -> Unit
+            EstadoCompromiso.PENDIENTE,
+            EstadoCompromiso.VENCIDO -> Unit
         }
 
-        // Verificar cuotas anteriores sin pagar
+        // Evitar pagos duplicados
+        val pagoExistente = _pagos.value.any {
+            it.idCompromiso == actual.id
+        }
+
+        if (pagoExistente) {
+            return "Este compromiso ya tiene un pago registrado"
+        }
+
+        // Fecha del compromiso seleccionado
         val fechaActual = LocalDate.parse(
             actual.fechaVencimiento,
             formatoFecha
         )
 
-        val tieneAnterior = obtenerCompromisos().any {
+        // Buscar compromisos anteriores
+        // que pertenezcan a la misma empresa
+        val tieneAnterior = obtenerCompromisos().any { otro ->
 
-            val fechaOtra = LocalDate.parse(
-                it.fechaVencimiento,
+            val fechaOtro = LocalDate.parse(
+                otro.fechaVencimiento,
                 formatoFecha
             )
 
-            it.id != actual.id &&
-                    it.idEmpresa == actual.idEmpresa &&
-                    it.concepto == actual.concepto &&
-                    (it.estado == EstadoCompromiso.PENDIENTE ||
-                            it.estado == EstadoCompromiso.VENCIDO) &&
-                    (
-                            fechaOtra.isBefore(fechaActual) ||
-                                    (
-                                            fechaOtra.isEqual(fechaActual) &&
-                                                    it.id < actual.id
-                                            )
-                            )
+            val estaActivo =
+                otro.estado == EstadoCompromiso.PENDIENTE ||
+                        otro.estado == EstadoCompromiso.VENCIDO
+
+            val esAnterior =
+                fechaOtro.isBefore(fechaActual) ||
+                        (
+                                fechaOtro.isEqual(fechaActual) &&
+                                        otro.numeroCuota != null &&
+                                        actual.numeroCuota != null &&
+                                        otro.numeroCuota < actual.numeroCuota
+                                )
+
+            otro.id != actual.id &&
+                    otro.idEmpresa == actual.idEmpresa &&
+                    estaActivo &&
+                    esAnterior
         }
 
         if (tieneAnterior) {
-            return "Primero debes pagar el compromiso anterior"
+            return "Primero debes pagar el compromiso anterior de esta empresa"
         }
 
         return null
@@ -207,6 +233,8 @@ class PagosViewModel : ViewModel() {
 
     // Confirmar un pago simulado
     fun pagarCompromiso(id: Long): String? {
+
+        refrescarVencimientos()
 
         val compromiso = obtenerCompromiso(id)
             ?: return "Compromiso no encontrado"
