@@ -24,6 +24,11 @@ import com.example.pagoflex.ui.screens.DetalleCompromisoScreen
 import com.example.pagoflex.ui.screens.PagoScreen
 import com.example.pagoflex.ui.screens.ComprobanteScreen
 import com.example.pagoflex.ui.screens.HistorialScreen
+import com.example.pagoflex.ui.screens.ReportarProblemaScreen
+import com.example.pagoflex.ui.screens.PanelAgenteConversacionalScreen
+import com.example.pagoflex.ui.screens.PanelEjecutivoEmpresaScreen
+import com.example.pagoflex.ui.screens.ResumenRecaudacionReportesScreen
+import com.example.pagoflex.ui.screens.GestionAnulacionCompromisosScreen
 import com.example.pagoflex.viewmodel.PagosViewModel
 
 @Composable
@@ -76,6 +81,36 @@ fun AppNavegacion() {
                 onVerHistorial = {
                     navController.navigate(
                         Ruta.Historial.ruta
+                    )
+                },
+
+                onVerAgente = {
+                    navController.navigate(
+                        Ruta.PanelAgente.ruta
+                    )
+                },
+
+                onVerReportarProblema = {
+                    navController.navigate(
+                        Ruta.ReportarProblema.ruta
+                    )
+                },
+
+                onVerPanelEjecutivo = {
+                    navController.navigate(
+                        Ruta.PanelEjecutivo.ruta
+                    )
+                },
+
+                onVerGestionCompromisos = {
+                    navController.navigate(
+                        Ruta.GestionCompromisos.ruta
+                    )
+                },
+
+                onVerReportes = {
+                    navController.navigate(
+                        Ruta.ResumenRecaudacion.ruta
                     )
                 }
             )
@@ -204,16 +239,46 @@ fun AppNavegacion() {
                     navController.popBackStack()
                 },
 
-                onVerComprobante = { idCompromiso ->
+                 onVerComprobante = { idCompromiso ->
 
-                    navController.navigate(
-                        Ruta.Comprobante.crear(idCompromiso)
-                    )
-                }
-            )
-        }
-    }
-}
+                     navController.navigate(
+                         Ruta.Comprobante.crear(idCompromiso)
+                     )
+                 }
+             )
+         }
+
+         composable(Ruta.ReportarProblema.ruta) {
+             ReportarProblemaScreen(
+                 onVolver = { navController.popBackStack() }
+             )
+         }
+
+         composable(Ruta.PanelAgente.ruta) {
+             PanelAgenteConversacionalScreen(
+                 onVolver = { navController.popBackStack() }
+             )
+         }
+
+         composable(Ruta.PanelEjecutivo.ruta) {
+             PanelEjecutivoEmpresaScreen(
+                 onVolver = { navController.popBackStack() }
+             )
+         }
+
+         composable(Ruta.ResumenRecaudacion.ruta) {
+             ResumenRecaudacionReportesScreen(
+                 onVolver = { navController.popBackStack() }
+             )
+         }
+
+         composable(Ruta.GestionCompromisos.ruta) {
+             GestionAnulacionCompromisosScreen(
+                 onVolver = { navController.popBackStack() }
+             )
+         }
+     }
+ }
 
 @Composable
 fun PantallaTemporal(

@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -33,6 +34,7 @@ import com.example.pagoflex.ui.theme.PagoFlexTheme
 @Composable
 fun ReportarProblemaScreen(
     modifier: Modifier = Modifier,
+    onVolver: () -> Unit = {},
     onEnviarReporte: (
         tipo: String,
         compromiso: String,
@@ -69,9 +71,14 @@ fun ReportarProblemaScreen(
         modifier = modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
+            .imePadding()
             .padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        TextButton(onClick = onVolver) {
+            Text("← Volver")
+        }
+
         Text(
             text = stringResource(R.string.titulo_app),
             style = MaterialTheme.typography.headlineMedium,

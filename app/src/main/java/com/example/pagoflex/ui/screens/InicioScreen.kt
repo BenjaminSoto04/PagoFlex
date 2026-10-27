@@ -25,7 +25,12 @@ import java.util.Locale
 fun InicioScreen(
     pagosViewModel: PagosViewModel,
     onVerCompromisos: () -> Unit,
-    onVerHistorial: () -> Unit
+    onVerHistorial: () -> Unit,
+    onVerAgente: () -> Unit = {},
+    onVerReportarProblema: () -> Unit = {},
+    onVerPanelEjecutivo: () -> Unit = {},
+    onVerGestionCompromisos: () -> Unit = {},
+    onVerReportes: () -> Unit = {}
 ) {
 
     // 1. Observar los compromisos del ViewModel
@@ -91,7 +96,7 @@ fun InicioScreen(
 
     // 11. Formato de pesos chilenos
     val formatoPesos = NumberFormat.getNumberInstance(
-        Locale("es", "CL")
+        Locale.forLanguageTag("es-CL")
     )
 
     val totalGeneralFormateado =
@@ -104,6 +109,8 @@ fun InicioScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .statusBarsPadding()
+            .navigationBarsPadding()
             .verticalScroll(rememberScrollState())
             .padding(20.dp),
 
@@ -297,8 +304,50 @@ fun InicioScreen(
             onClick = onVerHistorial,
             modifier = Modifier.fillMaxWidth()
         ) {
-
             Text("Historial de pagos")
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Text(
+            text = "Otras secciones",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold
+        )
+
+        OutlinedButton(
+            onClick = onVerAgente,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Agente virtual")
+        }
+
+        OutlinedButton(
+            onClick = onVerReportarProblema,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Reportar un problema")
+        }
+
+        OutlinedButton(
+            onClick = onVerPanelEjecutivo,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Panel ejecutivo")
+        }
+
+        OutlinedButton(
+            onClick = onVerGestionCompromisos,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Gestión de compromisos")
+        }
+
+        OutlinedButton(
+            onClick = onVerReportes,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+        Text("Reportes y recaudación")
         }
     }
 }

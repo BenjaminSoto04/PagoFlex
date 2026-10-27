@@ -28,4 +28,14 @@ sealed class Ruta(val ruta: String) {
             return "comprobante/$id"
         }
     }
+
+    data object ReportarProblema : Ruta("reportar_problema")
+
+    data object PanelAgente : Ruta("panel_agente")
+
+    data object PanelEjecutivo : Ruta("panel_ejecutivo")
+
+    data object ResumenRecaudacion : Ruta("resumen_recaudacion")
+
+    data object GestionCompromisos : Ruta("gestion_compromisos")
 }
