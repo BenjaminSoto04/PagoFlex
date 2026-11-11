@@ -30,10 +30,10 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -42,86 +42,29 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-
-private data class MensajeChat(
-    val texto: String,
-    val esUsuario: Boolean
-)
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.pagoflex.data.session.SessionManager
+import com.example.pagoflex.viewmodel.ChatViewModel
+import androidx.compose.ui.platform.LocalContext
 
 @Composable
-fun PanelAgenteConversacionalScreen(
-    onVolver: () -> Unit = {}
-) {
-    val mensajes = remember {
-        mutableStateListOf(
-            MensajeChat(
-                texto = "¡Hola! Soy el asistente virtual de PagoFlex. ¿En qué puedo ayudarte?",
-                esUsuario = false
-            )
-        )
-    }
+fun AsistenteVirtualScreen(onVolver: () -> Unit = {}) {
+    val context = LocalContext.current
+    val vm: ChatViewModel = viewModel()
+    val userId = SessionManager.userId(context)
+    val mensajes by vm.mensajes.collectAsStateWithLifecycle()
+    var texto by remember { mutableStateOf("") }
 
-    var textoMensaje by remember { mutableStateOf("") }
+    LaunchedEffect(userId) { if (userId > 0) vm.initUsuario(userId) }
 
-    fun enviarMensaje() {
-        val consulta = textoMensaje.trim()
-
-        if (consulta.isNotEmpty()) {
-            mensajes.add(
-                MensajeChat(
-                    texto = consulta,
-                    esUsuario = true
-                )
-            )
-
-            val consultaNormalizada = consulta.lowercase()
-
-            val respuesta = when {
-                "pago" in consultaNormalizada ->
-                    "Puedes consultar tus compromisos y seleccionar uno disponible para pagar. Recuerda que esta versión utiliza respuestas simuladas."
-
-                "vencimiento" in consultaNormalizada ||
-                        "vencido" in consultaNormalizada ->
-                    "Para revisar un vencimiento, consulta la fecha de tu compromiso. Si tienes dudas sobre un recargo, contacta al área de atención."
-
-                "compromiso" in consultaNormalizada ||
-                        "deuda" in consultaNormalizada ->
-                    "Puedes revisar el estado, el monto y la fecha de tus compromisos en la sección correspondiente de PagoFlex."
-
-                "problema" in consultaNormalizada ||
-                        "ayuda" in consultaNormalizada ->
-                    "Estoy aquí para ayudarte. Si necesitas informar un inconveniente, puedes utilizar la pantalla Reportar un problema."
-
-                "hola" in consultaNormalizada ->
-                    "¡Hola! Puedes preguntarme sobre pagos, compromisos o vencimientos."
-
-                else ->
-                    "Gracias por tu consulta. Puedo orientarte sobre pagos, compromisos y vencimientos. ¿Qué necesitas revisar?"
-            }
-
-            mensajes.add(
-                MensajeChat(
-                    texto = respuesta,
-                    esUsuario = false
-                )
-            )
-
-            textoMensaje = ""
-        }
-    }
-
-    Scaffold(
-        containerColor = MaterialTheme.colorScheme.background
-    ) { paddingInterno ->
-
+    Scaffold(containerColor = MaterialTheme.colorScheme.background) { paddingInterno ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingInterno)
                 .imePadding()
         ) {
-
-            // Encabezado del agente
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -153,30 +96,23 @@ fun PanelAgenteConversacionalScreen(
                         fontSize = 19.sp,
                         fontWeight = FontWeight.Bold
                     )
-
                     Text(
-                        text = "Asistente virtual · En línea",
+                        text = "Asistente virtual - En linea",
                         color = Color.White.copy(alpha = 0.85f),
                         fontSize = 12.sp
                     )
                 }
 
                 TextButton(onClick = onVolver) {
-                    Text(
-                        text = "Volver",
-                        color = Color.White
-                    )
+                    Text(text = "Volver", color = Color.White)
                 }
             }
 
-            // Mensaje informativo
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 12.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.secondaryContainer
-                ),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
                 shape = RoundedCornerShape(12.dp)
             ) {
                 Text(
@@ -187,7 +123,6 @@ fun PanelAgenteConversacionalScreen(
                 )
             }
 
-            // Conversación
             LazyColumn(
                 modifier = Modifier
                     .weight(1f)
@@ -195,32 +130,21 @@ fun PanelAgenteConversacionalScreen(
                     .padding(horizontal = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                items(mensajes) { mensaje ->
+                items(mensajes) { m ->
+                    val esUsuario = m.rolRemitente == "USUARIO"
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = if (mensaje.esUsuario) {
-                            Arrangement.End
-                        } else {
-                            Arrangement.Start
-                        }
+                        horizontalArrangement = if (esUsuario) Arrangement.End else Arrangement.Start
                     ) {
                         Surface(
                             modifier = Modifier.width(280.dp),
                             shape = RoundedCornerShape(16.dp),
-                            color = if (mensaje.esUsuario) {
-                                MaterialTheme.colorScheme.primary
-                            } else {
-                                MaterialTheme.colorScheme.surfaceVariant
-                            }
+                            color = if (esUsuario) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
                         ) {
                             Text(
-                                text = mensaje.texto,
+                                text = m.contenido,
                                 modifier = Modifier.padding(14.dp),
-                                color = if (mensaje.esUsuario) {
-                                    MaterialTheme.colorScheme.onPrimary
-                                } else {
-                                    MaterialTheme.colorScheme.onSurfaceVariant
-                                },
+                                color = if (esUsuario) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
                                 fontSize = 14.sp
                             )
                         }
@@ -230,7 +154,6 @@ fun PanelAgenteConversacionalScreen(
 
             HorizontalDivider()
 
-            // Campo para escribir y enviar mensajes
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -238,31 +161,33 @@ fun PanelAgenteConversacionalScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 OutlinedTextField(
-                    value = textoMensaje,
-                    onValueChange = { textoMensaje = it },
+                    value = texto,
+                    onValueChange = { texto = it },
                     modifier = Modifier.weight(1f),
-                    placeholder = {
-                        Text("Escribe tu consulta...")
-                    },
+                    placeholder = { Text("Escribe tu consulta...") },
                     shape = RoundedCornerShape(20.dp),
                     maxLines = 3,
-                    keyboardOptions = KeyboardOptions(
-                        imeAction = ImeAction.Send
-                    ),
-                    keyboardActions = KeyboardActions(
-                        onSend = { enviarMensaje() }
-                    )
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                    keyboardActions = KeyboardActions(onSend = {
+                        if (texto.isNotBlank()) {
+                            vm.enviarUsuario(userId, texto)
+                            texto = ""
+                        }
+                    })
                 )
 
                 Spacer(modifier = Modifier.width(8.dp))
 
                 Button(
-                    onClick = { enviarMensaje() },
-                    enabled = textoMensaje.isNotBlank(),
+                    onClick = {
+                        if (texto.isNotBlank()) {
+                            vm.enviarUsuario(userId, texto)
+                            texto = ""
+                        }
+                    },
+                    enabled = texto.isNotBlank(),
                     shape = RoundedCornerShape(16.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.primary
-                    )
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                 ) {
                     Text("Enviar")
                 }
