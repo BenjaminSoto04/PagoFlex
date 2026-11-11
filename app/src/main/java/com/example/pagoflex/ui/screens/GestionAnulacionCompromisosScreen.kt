@@ -150,14 +150,14 @@ fun GestionAnulacionCompromisosScreen(
                         .padding(start = 12.dp)
                 ) {
                     Text(
-                        text = "Gestión de compromisos",
+                        text = "Gestion de compromisos",
                         color = Color.White,
                         fontSize = 19.sp,
                         fontWeight = FontWeight.Bold
                     )
 
                     Text(
-                        text = "Consulta y anulación",
+                        text = "Consulta y anulacion",
                         color = Color.White.copy(alpha = 0.85f),
                         fontSize = 13.sp
                     )
@@ -179,7 +179,7 @@ fun GestionAnulacionCompromisosScreen(
 
                 item {
                     Text(
-                        text = "Resumen de gestión",
+                        text = "Resumen de gestion",
                         style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.Bold
                     )
@@ -317,7 +317,7 @@ fun GestionAnulacionCompromisosScreen(
         }
     }
 
-    // Diálogo para confirmar la anulación
+    // Dialogo para confirmar la anulacion
     if (mostrarDialogo && compromisoSeleccionado != null) {
         val compromiso = compromisoSeleccionado!!
 
@@ -340,7 +340,7 @@ fun GestionAnulacionCompromisosScreen(
                     )
 
                     Text(
-                        text = "Indica el motivo de la anulación:"
+                        text = "Indica el motivo de la anulacion:"
                     )
 
                     OutlinedTextField(

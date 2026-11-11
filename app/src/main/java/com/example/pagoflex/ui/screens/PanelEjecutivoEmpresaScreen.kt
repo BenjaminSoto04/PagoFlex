@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -32,6 +33,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -46,7 +49,10 @@ private data class CompromisoEjecutivo(
 
 @Composable
 fun PanelEjecutivoEmpresaScreen(
-    onVolver: () -> Unit = {}
+    user: com.example.pagoflex.data.local.entity.UserEntity? = null,
+    onVolver: () -> Unit = {},
+    onCerrarSesion: () -> Unit = {},
+    onVerPerfil: () -> Unit = {}
 ) {
     val compromisos = remember {
         listOf(
@@ -123,15 +129,24 @@ fun PanelEjecutivoEmpresaScreen(
                     shape = CircleShape,
                     color = Color.White
                 ) {
-                    Box(
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "PF",
-                            color = MaterialTheme.colorScheme.primary,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 18.sp
-                        )
+                    Box(contentAlignment = Alignment.Center) {
+                        val foto = user?.fotoUri
+                        val file = if (foto != null) java.io.File(foto) else null
+                        if (file != null && file.exists()) {
+                            val bmp = android.graphics.BitmapFactory.decodeFile(file.absolutePath)
+                            if (bmp != null) {
+                                androidx.compose.foundation.Image(
+                                    bitmap = bmp.asImageBitmap(),
+                                    contentDescription = null,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            } else {
+                                Text("PF", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                            }
+                        } else {
+                            Text("PF", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                        }
                     }
                 }
 
@@ -155,13 +170,13 @@ fun PanelEjecutivoEmpresaScreen(
                 }
 
                 Button(
-                    onClick = onVolver,
+                    onClick = onVerPerfil,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = Color.White,
                         contentColor = MaterialTheme.colorScheme.primary
                     )
                 ) {
-                    Text("Volver")
+                    Text("Mi perfil")
                 }
             }
 

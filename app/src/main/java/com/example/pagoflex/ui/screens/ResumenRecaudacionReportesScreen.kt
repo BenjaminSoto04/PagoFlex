@@ -113,14 +113,14 @@ fun ResumenRecaudacionReportesScreen(
     val reportes = remember {
         listOf(
             ReporteInterno(
-                titulo = "Reporte de recaudación",
+                titulo = "Reporte de recaudacion",
                 descripcion = "Resumen de pagos recibidos y montos recaudados.",
                 fecha = "20/10/2026",
                 tipo = "Financiero"
             ),
             ReporteInterno(
                 titulo = "Compromisos pendientes",
-                descripcion = "Seguimiento de compromisos aún no pagados.",
+                descripcion = "Seguimiento de compromisos aun no pagados.",
                 fecha = "20/10/2026",
                 tipo = "Seguimiento"
             ),
@@ -178,7 +178,7 @@ fun ResumenRecaudacionReportesScreen(
                     )
 
                     Text(
-                        text = "Resumen de recaudación",
+                        text = "Resumen de recaudacion",
                         color = Color.White.copy(alpha = 0.85f),
                         fontSize = 13.sp
                     )
@@ -208,16 +208,16 @@ fun ResumenRecaudacionReportesScreen(
                     Spacer(modifier = Modifier.height(4.dp))
 
                     Text(
-                        text = "Consulta el estado de la recaudación por período.",
+                        text = "Consulta el estado de la recaudacion por periodo.",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 13.sp
                     )
                 }
 
-                // Selector de período
+                // Selector de periodo
                 item {
                     Text(
-                        text = "Período del reporte",
+                        text = "Periodo del reporte",
                         fontWeight = FontWeight.SemiBold
                     )
 
@@ -273,7 +273,7 @@ fun ResumenRecaudacionReportesScreen(
                     }
                 }
 
-                // Porcentaje de recaudación
+                // Porcentaje de recaudacion
                 item {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
@@ -288,7 +288,7 @@ fun ResumenRecaudacionReportesScreen(
                             verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
                             Text(
-                                text = "Cumplimiento de recaudación",
+                                text = "Cumplimiento de recaudacion",
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 16.sp
                             )
@@ -372,12 +372,12 @@ fun ResumenRecaudacionReportesScreen(
                     TarjetaReporteInterno(reporte)
                 }
 
-                // Generar reporte de demostración
+                // Generar reporte de demostracion
                 item {
                     Button(
                         onClick = {
                             mensajeReporte =
-                                "Reporte ${periodoSeleccionado.lowercase()} generado correctamente (demostración)."
+                                "Reporte ${periodoSeleccionado.lowercase()} generado correctamente (demostracion)."
                         },
                         modifier = Modifier.fillMaxWidth()
                     ) {
@@ -396,7 +396,7 @@ fun ResumenRecaudacionReportesScreen(
                     Spacer(modifier = Modifier.height(8.dp))
 
                     Text(
-                        text = "Información demostrativa con datos ficticios.",
+                        text = "Informacion demostrativa con datos ficticios.",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 12.sp
                     )
