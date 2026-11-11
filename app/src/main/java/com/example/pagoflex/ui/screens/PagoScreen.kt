@@ -11,8 +11,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
-import com.example.pagoflex.data.DatosSimulados
+import com.example.pagoflex.data.session.SessionManager
 import com.example.pagoflex.viewmodel.PagosViewModel
+import androidx.compose.ui.platform.LocalContext
 import com.example.pagoflex.model.EstadoCompromiso
 
 import java.text.NumberFormat
@@ -37,9 +38,10 @@ fun PagoScreen(
         .collectAsStateWithLifecycle()
 
     // Buscar el compromiso seleccionado
+    val currentUserId = SessionManager.userId(LocalContext.current)
     val compromiso = compromisos.find {
         it.id == idCompromiso &&
-                it.idUsuario == DatosSimulados.ID_USUARIO_ACTUAL
+                it.idUsuario == currentUserId
     }
 
     // Controlar el resultado
@@ -97,7 +99,7 @@ fun PagoScreen(
 
             if (yaEstaPagado && comprobante != null) {
 
-                // Pantalla de éxito
+                // Pantalla de exito
                 Card(
                     modifier = Modifier.fillMaxWidth(),
 
@@ -172,7 +174,7 @@ fun PagoScreen(
 
             } else if (mensajeValidacion != null) {
 
-                // Mostrar por qué no puede pagar
+                // Mostrar por que no puede pagar
                 Card(
                     modifier = Modifier.fillMaxWidth(),
 
@@ -209,7 +211,7 @@ fun PagoScreen(
 
             } else {
 
-                // Información del compromiso
+                // Informacion del compromiso
                 Card(
                     modifier = Modifier.fillMaxWidth()
                 ) {
@@ -271,7 +273,7 @@ fun PagoScreen(
                 }
 
                 Text(
-                    text = "Este pago es una simulación. No se cobrará dinero real.",
+                    text = "Este pago es una simulacion. No se cobrara dinero real.",
                     style = MaterialTheme.typography.bodySmall
                 )
 

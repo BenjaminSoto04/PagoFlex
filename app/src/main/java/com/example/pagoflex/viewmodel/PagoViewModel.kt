@@ -1,27 +1,34 @@
 package com.example.pagoflex.viewmodel
 
-import androidx.lifecycle.ViewModel
-import com.example.pagoflex.data.DatosSimulados
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
+import com.example.pagoflex.data.local.entity.CompromisoEntity
+import com.example.pagoflex.data.repository.CompromisoRepository
+import com.example.pagoflex.data.repository.PagoRepository
+import com.example.pagoflex.data.repository.RepositoryProvider
+import com.example.pagoflex.data.session.SessionManager
 import com.example.pagoflex.model.Compromiso
 import com.example.pagoflex.model.EstadoCompromiso
 import com.example.pagoflex.model.Pago
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
-class PagosViewModel : ViewModel() {
+class PagosViewModel(application: Application) : AndroidViewModel(application) {
 
-    // Formatos utilizados por PagoFlex
-    private val formatoFecha =
-        DateTimeFormatter.ofPattern("dd-MM-uuuu")
+    private val compromisoRepo: CompromisoRepository = RepositoryProvider.compromisos(application)
+    private val pagoRepo: PagoRepository = RepositoryProvider.pagos(application)
 
-    private val formatoFechaHora =
-        DateTimeFormatter.ofPattern("dd-MM-uuuu HH:mm")
+    private val formatoFecha = DateTimeFormatter.ofPattern("dd-MM-uuuu")
+    private val formatoFechaHora = DateTimeFormatter.ofPattern("dd-MM-uuuu HH:mm")
 
-    // Recargos fijos de las empresas ficticias
     private val recargosEmpresas = mapOf(
         3L to 12000,
         5L to 0,
@@ -29,293 +36,157 @@ class PagosViewModel : ViewModel() {
         8L to 7500
     )
 
-    // Lista observable de compromisos
-    private val _compromisos = MutableStateFlow(
-        DatosSimulados.compromisos.map {
-            actualizarVencimiento(it)
+    private val _compromisos = MutableStateFlow<List<Compromiso>>(emptyList())
+    val compromisos: StateFlow<List<Compromiso>> = _compromisos.asStateFlow()
+
+    private val _pagos = MutableStateFlow<List<Pago>>(emptyList())
+    val pagos: StateFlow<List<Pago>> = _pagos.asStateFlow()
+
+    init {
+        viewModelScope.launch {
+            compromisoRepo.getAll().collect { list ->
+                _compromisos.value = list
+            }
         }
-    )
-
-    val compromisos: StateFlow<List<Compromiso>> =
-        _compromisos.asStateFlow()
-
-    // Lista observable de pagos
-    private val _pagos = MutableStateFlow(
-        DatosSimulados.pagos
-    )
-
-    val pagos: StateFlow<List<Pago>> =
-        _pagos.asStateFlow()
-
-    // Actualizar el estado según la fecha
-    private fun actualizarVencimiento(
-        compromiso: Compromiso
-    ): Compromiso {
-
-        if (compromiso.estado != EstadoCompromiso.PENDIENTE) {
-            return compromiso
+        viewModelScope.launch {
+            pagoRepo.getAll().collect { list ->
+                _pagos.value = list
+            }
         }
+        viewModelScope.launch(Dispatchers.IO) {
+            refrescarVencimientosInternal()
+        }
+    }
 
-        val vencimiento = LocalDate.parse(
-            compromiso.fechaVencimiento,
-            formatoFecha
-        )
+    private fun currentUserId(): Long {
+        return SessionManager.userId(getApplication())
+    }
 
+    private fun actualizarVencimiento(compromiso: Compromiso): Compromiso {
+        if (compromiso.estado != EstadoCompromiso.PENDIENTE) return compromiso
+        val vencimiento = LocalDate.parse(compromiso.fechaVencimiento, formatoFecha)
         if (vencimiento.isBefore(LocalDate.now())) {
-
-            val recargo = recargosEmpresas[
-                compromiso.idEmpresa
-            ] ?: 0
-
-            return compromiso.copy(
-                estado = EstadoCompromiso.VENCIDO,
-                recargoAplicado = recargo
-            )
+            val recargo = recargosEmpresas[compromiso.idEmpresa] ?: 0
+            return compromiso.copy(estado = EstadoCompromiso.VENCIDO, recargoAplicado = recargo)
         }
-
         return compromiso
     }
 
     fun refrescarVencimientos() {
-
-        _compromisos.value = _compromisos.value.map {
-            actualizarVencimiento(it)
-        }
+        viewModelScope.launch(Dispatchers.IO) { refrescarVencimientosInternal() }
     }
 
-    // Obtener compromisos del usuario actual
-    fun obtenerCompromisos(): List<Compromiso> {
-
-        return _compromisos.value.filter {
-            it.idUsuario == DatosSimulados.ID_USUARIO_ACTUAL
-        }
-    }
-
-    // Filtrar compromisos por estado
-    fun filtrarCompromisos(
-        estado: EstadoCompromiso
-    ): List<Compromiso> {
-
-        return obtenerCompromisos().filter {
-            it.estado == estado
-        }
-    }
-
-    // Buscar compromiso por identificador
-    fun obtenerCompromiso(
-        id: Long
-    ): Compromiso? {
-
-        return obtenerCompromisos().find {
-            it.id == id
-        }
-    }
-
-    // Calcular el total de un compromiso
-    fun obtenerTotalCompromiso(
-        compromiso: Compromiso
-    ): Int {
-
-        return compromiso.monto +
-                compromiso.recargoAplicado
-    }
-
-    // Calcular el total pendiente
-    fun obtenerTotalPendiente(): Int {
-
-        return obtenerCompromisos()
-            .filter {
-                it.estado == EstadoCompromiso.PENDIENTE ||
-                        it.estado == EstadoCompromiso.VENCIDO
+    private suspend fun refrescarVencimientosInternal() {
+        val list = _compromisos.value
+        list.forEach { c ->
+            if (c.estado == EstadoCompromiso.PENDIENTE) {
+                val updated = actualizarVencimiento(c)
+                if (updated.estado != c.estado || updated.recargoAplicado != c.recargoAplicado) {
+                    compromisoRepo.update(updated)
+                }
             }
-            .sumOf {
-                obtenerTotalCompromiso(it)
-            }
-    }
-
-    // Cantidad de compromisos vencidos
-    fun obtenerCantidadVencidos(): Int {
-
-        return obtenerCompromisos().count {
-            it.estado == EstadoCompromiso.VENCIDO
         }
     }
 
-    // Obtener próximo vencimiento
-    fun obtenerProximoVencimiento(): Compromiso? {
+    fun obtenerCompromisos(): List<Compromiso> =
+        _compromisos.value.filter { it.idUsuario == currentUserId() }
 
-        return obtenerCompromisos()
-            .filter {
-                it.estado == EstadoCompromiso.PENDIENTE
-            }
-            .minByOrNull {
-                LocalDate.parse(
-                    it.fechaVencimiento,
-                    formatoFecha
-                )
-            }
-    }
+    fun filtrarCompromisos(estado: EstadoCompromiso): List<Compromiso> =
+        obtenerCompromisos().filter { it.estado == estado }
 
-    // Validar si se puede pagar
-    fun validarPago(
-        compromiso: Compromiso
-    ): String? {
+    fun obtenerCompromiso(id: Long): Compromiso? =
+        obtenerCompromisos().find { it.id == id }
 
-        // Buscar el compromiso actualizado
-        val actual = obtenerCompromiso(compromiso.id)
-            ?: return "Compromiso no encontrado"
+    fun obtenerTotalCompromiso(compromiso: Compromiso): Int =
+        compromiso.monto + compromiso.recargoAplicado
 
-        // Validar el estado
+    fun obtenerTotalPendiente(): Int =
+        obtenerCompromisos().filter { it.estado == EstadoCompromiso.PENDIENTE || it.estado == EstadoCompromiso.VENCIDO }
+            .sumOf { obtenerTotalCompromiso(it) }
+
+    fun obtenerCantidadVencidos(): Int =
+        obtenerCompromisos().count { it.estado == EstadoCompromiso.VENCIDO }
+
+    fun obtenerProximoVencimiento(): Compromiso? =
+        obtenerCompromisos().filter { it.estado == EstadoCompromiso.PENDIENTE }
+            .minByOrNull { LocalDate.parse(it.fechaVencimiento, formatoFecha) }
+
+    fun validarPago(compromiso: Compromiso): String? {
+        val actual = obtenerCompromiso(compromiso.id) ?: return "Compromiso no encontrado"
         when (actual.estado) {
-
-            EstadoCompromiso.PAGADO ->
-                return "Este compromiso ya está pagado"
-
-            EstadoCompromiso.ANULADO ->
-                return "Este compromiso está anulado"
-
-            EstadoCompromiso.EN_REVISION ->
-                return "Este compromiso está en revisión"
-
-            EstadoCompromiso.PENDIENTE,
-            EstadoCompromiso.VENCIDO -> Unit
+            EstadoCompromiso.PAGADO -> return "Este compromiso ya esta pagado"
+            EstadoCompromiso.ANULADO -> return "Este compromiso esta anulado"
+            EstadoCompromiso.EN_REVISION -> return "Este compromiso esta en revision"
+            EstadoCompromiso.PENDIENTE, EstadoCompromiso.VENCIDO -> Unit
         }
+        val pagoExistente = _pagos.value.any { it.idCompromiso == actual.id }
+        if (pagoExistente) return "Este compromiso ya tiene un pago registrado"
 
-        // Evitar pagos duplicados
-        val pagoExistente = _pagos.value.any {
-            it.idCompromiso == actual.id
-        }
-
-        if (pagoExistente) {
-            return "Este compromiso ya tiene un pago registrado"
-        }
-
-        // Fecha del compromiso seleccionado
-        val fechaActual = LocalDate.parse(
-            actual.fechaVencimiento,
-            formatoFecha
-        )
-
-        // Buscar compromisos anteriores
-        // que pertenezcan a la misma empresa
+        val fechaActual = LocalDate.parse(actual.fechaVencimiento, formatoFecha)
         val tieneAnterior = obtenerCompromisos().any { otro ->
-
-            val fechaOtro = LocalDate.parse(
-                otro.fechaVencimiento,
-                formatoFecha
-            )
-
-            val estaActivo =
-                otro.estado == EstadoCompromiso.PENDIENTE ||
-                        otro.estado == EstadoCompromiso.VENCIDO
-
-            val esAnterior =
-                fechaOtro.isBefore(fechaActual) ||
-                        (
-                                fechaOtro.isEqual(fechaActual) &&
-                                        otro.numeroCuota != null &&
-                                        actual.numeroCuota != null &&
-                                        otro.numeroCuota < actual.numeroCuota
-                                )
-
-            otro.id != actual.id &&
-                    otro.idEmpresa == actual.idEmpresa &&
-                    estaActivo &&
-                    esAnterior
+            val fechaOtro = LocalDate.parse(otro.fechaVencimiento, formatoFecha)
+            val estaActivo = otro.estado == EstadoCompromiso.PENDIENTE || otro.estado == EstadoCompromiso.VENCIDO
+            val esAnterior = fechaOtro.isBefore(fechaActual) || (
+                    fechaOtro.isEqual(fechaActual) &&
+                            otro.numeroCuota != null && actual.numeroCuota != null &&
+                            otro.numeroCuota < actual.numeroCuota
+                    )
+            otro.id != actual.id && otro.idEmpresa == actual.idEmpresa && estaActivo && esAnterior
         }
-
-        if (tieneAnterior) {
-            return "Primero debes pagar el compromiso anterior de esta empresa"
-        }
-
+        if (tieneAnterior) return "Primero debes pagar el compromiso anterior de esta empresa"
         return null
     }
 
-    // Confirmar un pago simulado
-    fun pagarCompromiso(id: Long): String? {
-
-        refrescarVencimientos()
-
-        val compromiso = obtenerCompromiso(id)
-            ?: return "Compromiso no encontrado"
-
+    fun pagarCompromiso(id: Long): String? = runBlocking(Dispatchers.IO) {
+        refrescarVencimientosInternal()
+        val compromiso = obtenerCompromiso(id) ?: return@runBlocking "Compromiso no encontrado"
         val error = validarPago(compromiso)
+        if (error != null) return@runBlocking error
+        if (_pagos.value.any { it.idCompromiso == id }) return@runBlocking "Este compromiso ya tiene un pago registrado"
 
-        if (error != null) {
-            return error
-        }
-
-        // Evitar pagos duplicados
-        if (_pagos.value.any {
-                it.idCompromiso == id
-            }) {
-            return "Este compromiso ya tiene un pago registrado"
-        }
-
-        val siguienteId = (
-                _pagos.value.maxOfOrNull { it.id } ?: 0L
-                ) + 1L
-
-        val siguienteFolio = (
-                _pagos.value.maxOfOrNull {
-                    it.numeroComprobante
-                        .removePrefix("CPR-")
-                        .toLongOrNull() ?: 0L
-                } ?: 0L
-                ) + 1L
-
-        val numeroComprobante =
-            "CPR-${siguienteFolio.toString().padStart(6, '0')}"
+        val siguienteId = (_pagos.value.maxOfOrNull { it.id } ?: 0L) + 1L
+        val siguienteFolio = (_pagos.value.maxOfOrNull {
+            it.numeroComprobante.removePrefix("CPR-").toLongOrNull() ?: 0L
+        } ?: 0L) + 1L
+        val numeroComprobante = "CPR-${siguienteFolio.toString().padStart(6, '0')}"
 
         val nuevoPago = Pago(
             id = siguienteId,
             numeroComprobante = numeroComprobante,
             idCompromiso = compromiso.id,
-            fechaHora = LocalDateTime.now()
-                .format(formatoFechaHora),
+            fechaHora = LocalDateTime.now().format(formatoFechaHora),
             montoPagado = obtenerTotalCompromiso(compromiso),
             canal = "App",
             medioPago = "Pago simulado"
         )
-
-        // Agregar pago al historial
-        _pagos.value = _pagos.value + nuevoPago
-
-        // Actualizar compromiso
-        _compromisos.value = _compromisos.value.map {
-
-            if (it.id == compromiso.id) {
-                it.copy(
-                    estado = EstadoCompromiso.PAGADO
-                )
-            } else {
-                it
-            }
-        }
-
-        // null significa que el pago fue exitoso
-        return null
+        pagoRepo.insert(nuevoPago)
+        compromisoRepo.update(compromiso.copy(estado = EstadoCompromiso.PAGADO))
+        null
     }
 
-    // Consultar historial del usuario
     fun obtenerHistorial(): List<Pago> {
-
-        val idsCompromisos = obtenerCompromisos()
-            .map { it.id }
-            .toSet()
-
-        return _pagos.value.filter {
-            it.idCompromiso in idsCompromisos
-        }
+        val idsCompromisos = obtenerCompromisos().map { it.id }.toSet()
+        return _pagos.value.filter { it.idCompromiso in idsCompromisos }
     }
 
-    // Obtener comprobante de un compromiso
-    fun obtenerComprobante(
-        idCompromiso: Long
-    ): Pago? {
+    fun obtenerComprobante(idCompromiso: Long): Pago? =
+        obtenerHistorial().find { it.idCompromiso == idCompromiso }
 
-        return obtenerHistorial().find {
-            it.idCompromiso == idCompromiso
-        }
+    // Executive helpers
+    fun crearCompromiso(compromiso: Compromiso) {
+        viewModelScope.launch(Dispatchers.IO) { compromisoRepo.insert(compromiso) }
+    }
+
+    fun modificarCompromiso(compromiso: Compromiso) {
+        viewModelScope.launch(Dispatchers.IO) { compromisoRepo.update(compromiso) }
+    }
+
+    fun anularCompromiso(id: Long) {
+        viewModelScope.launch(Dispatchers.IO) { compromisoRepo.anular(id) }
+    }
+
+    // attach photo to pago
+    fun adjuntarFotoPago(idPago: Long, uri: String) {
+        viewModelScope.launch(Dispatchers.IO) { pagoRepo.updateFoto(idPago, uri) }
     }
 }

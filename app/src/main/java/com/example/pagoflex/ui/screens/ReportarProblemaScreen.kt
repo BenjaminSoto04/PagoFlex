@@ -28,19 +28,23 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalContext
 import com.example.pagoflex.R
+import com.example.pagoflex.data.session.SessionManager
 import com.example.pagoflex.ui.theme.PagoFlexTheme
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.pagoflex.viewmodel.ReportarProblemaViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 @Composable
 fun ReportarProblemaScreen(
     modifier: Modifier = Modifier,
     onVolver: () -> Unit = {},
-    onEnviarReporte: (
-        tipo: String,
-        compromiso: String,
-        descripcion: String
-    ) -> Unit = { _, _, _ -> }
+    reportarViewModel: ReportarProblemaViewModel? = null
 ) {
+    val vm = reportarViewModel ?: viewModel()
+    val enviado by vm.enviado.collectAsStateWithLifecycle()
+    val currentUserId = SessionManager.userId(LocalContext.current)
     var tipoProblema by remember { mutableStateOf("") }
     var compromiso by remember { mutableStateOf("") }
     var descripcion by remember { mutableStateOf("") }
@@ -48,16 +52,16 @@ fun ReportarProblemaScreen(
     var menuTipoAbierto by remember { mutableStateOf(false) }
     var menuCompromisoAbierto by remember { mutableStateOf(false) }
 
-    var errorTipo by remember { mutableStateOf(false) }
-    var errorCompromiso by remember { mutableStateOf(false) }
-    var errorDescripcion by remember { mutableStateOf(false) }
+    val errorTipo by vm.errorTipo.collectAsStateWithLifecycle()
+    val errorCompromiso by vm.errorCompromiso.collectAsStateWithLifecycle()
+    val errorDescripcion by vm.errorDescripcion.collectAsStateWithLifecycle()
     var reporteEnviado by remember { mutableStateOf(false) }
 
     val tiposProblema = listOf(
         "Problema con un pago",
         "Error en un comprobante",
         "Compromiso incorrecto",
-        "Problema con la aplicación",
+        "Problema con la aplicacion",
         "Otro"
     )
 
@@ -125,7 +129,6 @@ fun ReportarProblemaScreen(
                         onClick = {
                             tipoProblema = tipo
                             menuTipoAbierto = false
-                            errorTipo = false
                         }
                     )
                 }
@@ -167,7 +170,6 @@ fun ReportarProblemaScreen(
                         onClick = {
                             compromiso = nombre
                             menuCompromisoAbierto = false
-                            errorCompromiso = false
                         }
                     )
                 }
@@ -185,7 +187,6 @@ fun ReportarProblemaScreen(
             value = descripcion,
             onValueChange = {
                 descripcion = it
-                errorDescripcion = false
             },
             modifier = Modifier.fillMaxWidth(),
             label = {
@@ -207,23 +208,7 @@ fun ReportarProblemaScreen(
 
         Button(
             onClick = {
-                errorTipo = tipoProblema.isBlank()
-                errorCompromiso = compromiso.isBlank()
-                errorDescripcion = descripcion.trim().length < 10
-
-                val formularioValido =
-                    !errorTipo &&
-                            !errorCompromiso &&
-                            !errorDescripcion
-
-                if (formularioValido) {
-                    onEnviarReporte(
-                        tipoProblema,
-                        compromiso,
-                        descripcion.trim()
-                    )
-                    reporteEnviado = true
-                }
+                vm.validarYEnviar(tipoProblema, compromiso, descripcion, currentUserId)
             },
             modifier = Modifier.fillMaxWidth()
         ) {
@@ -231,7 +216,7 @@ fun ReportarProblemaScreen(
         }
     }
 
-    if (reporteEnviado) {
+    if (enviado) {
         AlertDialog(
             onDismissRequest = {
                 reporteEnviado = false
@@ -245,7 +230,7 @@ fun ReportarProblemaScreen(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        reporteEnviado = false
+                        vm.reset()
                         tipoProblema = ""
                         compromiso = ""
                         descripcion = ""

@@ -10,8 +10,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
-import com.example.pagoflex.data.DatosSimulados
+import com.example.pagoflex.data.session.SessionManager
 import com.example.pagoflex.model.Compromiso
+import androidx.compose.ui.platform.LocalContext
 import com.example.pagoflex.model.Pago
 import com.example.pagoflex.viewmodel.PagosViewModel
 
@@ -37,12 +38,14 @@ fun HistorialScreen(
         .compromisos
         .collectAsStateWithLifecycle()
 
+    val currentUserId = SessionManager.userId(LocalContext.current)
+
     // Relacionar cada pago con su compromiso
     val historial = pagos.mapNotNull { pago ->
 
         val compromiso = compromisos.find {
             it.id == pago.idCompromiso &&
-                    it.idUsuario == DatosSimulados.ID_USUARIO_ACTUAL
+                    it.idUsuario == currentUserId
         }
 
         if (compromiso != null) {
@@ -75,7 +78,7 @@ fun HistorialScreen(
         .distinctBy { it.idEmpresa }
         .sortedBy { it.empresa }
 
-    // Períodos disponibles: MM-AAAA
+    // Periodos disponibles: MM-AAAA
     val periodos = historial
         .map { it.first.fechaHora.substring(3, 10) }
         .distinct()
@@ -104,7 +107,7 @@ fun HistorialScreen(
         coincideEmpresa && coincidePeriodo
     }
 
-    // Ordenar desde el pago más reciente
+    // Ordenar desde el pago mas reciente
     val formatoFechaHora =
         DateTimeFormatter.ofPattern("dd-MM-uuuu HH:mm")
 
@@ -199,7 +202,7 @@ fun HistorialScreen(
                 }
             }
 
-            // Filtro por período
+            // Filtro por periodo
             Box(
                 modifier = Modifier.weight(1f)
             ) {
@@ -212,7 +215,7 @@ fun HistorialScreen(
                 ) {
 
                     Text(
-                        text = periodoSeleccionado ?: "Período"
+                        text = periodoSeleccionado ?: "Periodo"
                     )
                 }
 

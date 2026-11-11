@@ -7,5 +7,6 @@ data class Pago(
     val fechaHora: String,
     val montoPagado: Int,
     val canal: String,
-    val medioPago: String
+    val medioPago: String,
+    val fotoUri: String? = null
 )

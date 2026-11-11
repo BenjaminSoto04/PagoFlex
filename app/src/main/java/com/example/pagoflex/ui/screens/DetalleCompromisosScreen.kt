@@ -11,9 +11,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
-import com.example.pagoflex.data.DatosSimulados
+import com.example.pagoflex.data.session.SessionManager
 import com.example.pagoflex.model.EstadoCompromiso
 import com.example.pagoflex.viewmodel.PagosViewModel
+import androidx.compose.ui.platform.LocalContext
 
 import java.text.NumberFormat
 import java.time.LocalDate
@@ -35,9 +36,10 @@ fun DetalleCompromisoScreen(
         .collectAsStateWithLifecycle()
 
     // Buscar el compromiso seleccionado
+    val currentUserId = SessionManager.userId(LocalContext.current)
     val compromiso = compromisos.find {
         it.id == idCompromiso &&
-                it.idUsuario == DatosSimulados.ID_USUARIO_ACTUAL
+                it.idUsuario == currentUserId
     }
 
     // Comprobar si existe
@@ -80,12 +82,12 @@ fun DetalleCompromisoScreen(
 
         EstadoCompromiso.PAGADO -> "Pagado"
 
-        EstadoCompromiso.EN_REVISION -> "En revisión"
+        EstadoCompromiso.EN_REVISION -> "En revision"
 
         EstadoCompromiso.ANULADO -> "Anulado"
     }
 
-    // Información de la cuota
+    // Informacion de la cuota
     val cuota = if (
         compromiso.numeroCuota != null &&
         compromiso.totalCuotas != null
@@ -98,7 +100,7 @@ fun DetalleCompromisoScreen(
         "No aplica"
     }
 
-    // Días de atraso
+    // Dias de atraso
     val formatoFecha =
         DateTimeFormatter.ofPattern("dd-MM-uuuu")
 
@@ -121,7 +123,7 @@ fun DetalleCompromisoScreen(
         0L
     }
 
-    // Validación de pago
+    // Validacion de pago
     val mensajeValidacion =
         pagosViewModel.validarPago(compromiso)
 
@@ -137,19 +139,19 @@ fun DetalleCompromisoScreen(
             Arrangement.spacedBy(16.dp)
     ) {
 
-        // Botón de Volver
+        // Boton de Volver
         TextButton(onClick = onVolver) {
             Text("← Volver")
         }
 
-        // Título
+        // Titulo
         Text(
             text = "Detalle del compromiso",
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold
         )
 
-        // Información principal
+        // Informacion principal
         Card(
             modifier = Modifier.fillMaxWidth()
         ) {
@@ -223,7 +225,7 @@ fun DetalleCompromisoScreen(
                 ) {
 
                     Text(
-                        text = "Días de atraso: $diasAtraso"
+                        text = "Dias de atraso: $diasAtraso"
                     )
 
                     Text(
@@ -237,7 +239,7 @@ fun DetalleCompromisoScreen(
             }
         }
 
-        // Mensaje de validación
+        // Mensaje de validacion
         if (mensajeValidacion != null) {
 
             Card(
@@ -254,7 +256,7 @@ fun DetalleCompromisoScreen(
             }
         }
 
-        // Botón de pago
+        // Boton de pago
         Button(
             onClick = {
                 onPagar(compromiso.id)

@@ -6,14 +6,26 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.FileProvider
+import java.io.File
+import android.os.Environment
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
-import com.example.pagoflex.data.DatosSimulados
+import com.example.pagoflex.data.session.SessionManager
 import com.example.pagoflex.viewmodel.PagosViewModel
+import androidx.compose.ui.platform.LocalContext
 
 import java.text.NumberFormat
 import java.time.LocalDate
@@ -39,9 +51,10 @@ fun ComprobanteScreen(
         .collectAsStateWithLifecycle()
 
     // Buscar el compromiso del usuario
+    val currentUserId = SessionManager.userId(LocalContext.current)
     val compromiso = compromisos.find {
         it.id == idCompromiso &&
-                it.idUsuario == DatosSimulados.ID_USUARIO_ACTUAL
+                it.idUsuario == currentUserId
     }
 
     // Buscar el pago confirmado
@@ -78,7 +91,7 @@ fun ComprobanteScreen(
         if (compromiso == null || pago == null) {
 
             Text(
-                text = "No se encontró un comprobante para este compromiso."
+                text = "No se encontro un comprobante para este compromiso."
             )
 
             Button(
@@ -90,7 +103,7 @@ fun ComprobanteScreen(
 
         } else {
 
-            // Información de la cuota
+            // Informacion de la cuota
             val cuota = if (
                 compromiso.numeroCuota != null &&
                 compromiso.totalCuotas != null
@@ -100,7 +113,7 @@ fun ComprobanteScreen(
                 "No aplica"
             }
 
-            // Determinar si se pagó a tiempo
+            // Determinar si se pago a tiempo
             val formatoFecha =
                 DateTimeFormatter.ofPattern("dd-MM-uuuu")
 
@@ -128,7 +141,7 @@ fun ComprobanteScreen(
                         Arrangement.spacedBy(12.dp)
                 ) {
 
-                    // Confirmación visual
+                    // Confirmacion visual
                     Text(
                         text = "✓ Pago confirmado",
                         color = MaterialTheme.colorScheme.primary,
@@ -152,7 +165,7 @@ fun ComprobanteScreen(
 
                     HorizontalDivider()
 
-                    // Identificación del comprobante
+                    // Identificacion del comprobante
                     Text(
                         text = "N° comprobante: ${pago.numeroComprobante}"
                     )
@@ -163,7 +176,7 @@ fun ComprobanteScreen(
 
                     HorizontalDivider()
 
-                    // Información de la empresa
+                    // Informacion de la empresa
                     Text(
                         text = "Empresa",
                         fontWeight = FontWeight.Bold
@@ -217,7 +230,7 @@ fun ComprobanteScreen(
 
                     HorizontalDivider()
 
-                    // Información del pago
+                    // Informacion del pago
                     Text(
                         text = "Canal: ${pago.canal}"
                     )
@@ -230,7 +243,7 @@ fun ComprobanteScreen(
                         text = if (pagoATiempo)
                             "Pago realizado a tiempo"
                         else
-                            "Pago realizado después del vencimiento"
+                            "Pago realizado despues del vencimiento"
                     )
                 }
             }
@@ -243,11 +256,29 @@ fun ComprobanteScreen(
             ) {
 
                 Text(
-                    text = "Este comprobante corresponde a un pago simulado con fines académicos. No representa una transacción bancaria real.",
+                    text = "Este comprobante corresponde a un pago simulado con fines academicos. No representa una transaccion bancaria real.",
                     modifier = Modifier.padding(16.dp),
                     style = MaterialTheme.typography.bodySmall
                 )
             }
+
+            val context = LocalContext.current
+            var photoUri by remember { mutableStateOf<Uri?>(null) }
+            val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { ok ->
+                if (ok && photoUri != null) {
+                    pago?.let { pagosViewModel.adjuntarFotoPago(it.id, photoUri.toString()) }
+                }
+            }
+            Button(onClick = {
+                val file = File(context.getExternalFilesDir(Environment.DIRECTORY_PICTURES), "comprobante_${System.currentTimeMillis()}.jpg")
+                file.parentFile?.mkdirs()
+                val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+                photoUri = uri
+                cameraLauncher.launch(uri)
+            }, modifier = Modifier.fillMaxWidth()) {
+                Text("Tomar foto del comprobante")
+            }
+            pago?.fotoUri?.let { Text("Foto adjunta: $it", style = MaterialTheme.typography.bodySmall) }
 
             Button(
                 onClick = onIrInicio,

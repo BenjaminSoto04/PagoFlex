@@ -11,12 +11,16 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.graphics.Color
+import com.example.pagoflex.ui.theme.GrisDeshabilitado
+import com.example.pagoflex.ui.theme.Blanco
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
-import com.example.pagoflex.data.DatosSimulados
+import com.example.pagoflex.data.session.SessionManager
 import com.example.pagoflex.model.Compromiso
 import com.example.pagoflex.model.EstadoCompromiso
 import com.example.pagoflex.viewmodel.PagosViewModel
+import androidx.compose.ui.platform.LocalContext
 
 import java.text.NumberFormat
 import java.util.Locale
@@ -40,8 +44,9 @@ fun CompromisosScreen(
 
     // Mostrar solamente los compromisos
     // correspondientes al usuario actual
+    val currentUserId = SessionManager.userId(LocalContext.current)
     val compromisosUsuario = compromisos.filter {
-        it.idUsuario == DatosSimulados.ID_USUARIO_ACTUAL
+        it.idUsuario == currentUserId
     }
 
     // Aplicar el filtro seleccionado
@@ -69,14 +74,14 @@ fun CompromisosScreen(
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
 
-        // Botón para regresar
+        // Boton para regresar
         TextButton(
             onClick = onVolver
         ) {
             Text("← Volver")
         }
 
-        // Título
+        // Titulo
         Text(
             text = "Mis compromisos",
             style = MaterialTheme.typography.headlineMedium,
@@ -104,7 +109,7 @@ fun CompromisosScreen(
                     EstadoCompromiso.PENDIENTE -> "Pendientes"
                     EstadoCompromiso.VENCIDO -> "Vencidos"
                     EstadoCompromiso.PAGADO -> "Pagados"
-                    EstadoCompromiso.EN_REVISION -> "En revisión"
+                    EstadoCompromiso.EN_REVISION -> "En revision"
                     EstadoCompromiso.ANULADO -> "Anulados"
                 }
 
@@ -173,7 +178,7 @@ fun TarjetaCompromiso(
 
         EstadoCompromiso.PAGADO -> "Pagado"
 
-        EstadoCompromiso.EN_REVISION -> "En revisión"
+        EstadoCompromiso.EN_REVISION -> "En revision"
 
         EstadoCompromiso.ANULADO -> "Anulado"
     }
@@ -181,9 +186,10 @@ fun TarjetaCompromiso(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable {
-                onClick()
-            }
+            .clickable { onClick() },
+        shape = MaterialTheme.shapes.large,
+        colors = CardDefaults.cardColors(containerColor = Blanco),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
 
         Column(
@@ -219,9 +225,17 @@ fun TarjetaCompromiso(
             )
 
             // Estado
+            val colorEstado = when (compromiso.estado) {
+                EstadoCompromiso.PAGADO -> Color(0xFF2E7D32)
+                EstadoCompromiso.VENCIDO -> Color(0xFFE53935)
+                EstadoCompromiso.PENDIENTE -> Color(0xFFEF6C00)
+                else -> GrisDeshabilitado
+            }
             Text(
-                text = "Estado: $nombreEstado",
-                style = MaterialTheme.typography.bodyMedium
+                text = nombreEstado,
+                style = MaterialTheme.typography.bodyMedium,
+                color = colorEstado,
+                fontWeight = FontWeight.SemiBold
             )
 
             // Folio
