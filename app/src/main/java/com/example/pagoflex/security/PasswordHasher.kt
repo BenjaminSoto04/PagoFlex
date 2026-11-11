@@ -1,0 +1,39 @@
+package com.example.pagoflex.security
+
+import java.security.MessageDigest
+import java.security.SecureRandom
+import java.util.Base64
+import javax.crypto.SecretKeyFactory
+import javax.crypto.spec.PBEKeySpec
+
+object PasswordHasher {
+    private const val ITERATIONS = 120000
+    private const val KEY_LENGTH = 256
+
+    fun generateSalt(): String {
+        val bytes = ByteArray(16)
+        SecureRandom().nextBytes(bytes)
+        return Base64.getEncoder().encodeToString(bytes)
+    }
+
+    fun hash(password: String, salt: String): String {
+        val spec = PBEKeySpec(password.toCharArray(), Base64.getDecoder().decode(salt), ITERATIONS, KEY_LENGTH)
+        val factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")
+        val key = factory.generateSecret(spec)
+        return Base64.getEncoder().encodeToString(key.encoded)
+    }
+
+    fun verify(password: String, salt: String, hash: String): Boolean {
+        return MessageDigest.isEqual(hash(password, salt).toByteArray(), hash.toByteArray())
+    }
+
+    fun validate(password: String): List<String> {
+        val errors = mutableListOf<String>()
+        if (password.length < 8) errors.add("Mínimo 8 caracteres")
+        if (!password.any { it.isUpperCase() }) errors.add("Al menos una letra mayúscula")
+        if (!password.any { it.isLowerCase() }) errors.add("Al menos una letra minúscula")
+        if (!password.any { it.isDigit() }) errors.add("Al menos un número")
+        if (!password.any { !it.isLetterOrDigit() }) errors.add("Al menos un carácter especial")
+        return errors
+    }
+}
