@@ -2,7 +2,7 @@ package com.example.pagoflex.security
 
 import java.security.MessageDigest
 import java.security.SecureRandom
-import java.util.Base64
+import android.util.Base64
 import javax.crypto.SecretKeyFactory
 import javax.crypto.spec.PBEKeySpec
 
@@ -13,14 +13,14 @@ object PasswordHasher {
     fun generateSalt(): String {
         val bytes = ByteArray(16)
         SecureRandom().nextBytes(bytes)
-        return Base64.getEncoder().encodeToString(bytes)
+        return Base64.encodeToString(bytes, Base64.NO_WRAP)
     }
 
     fun hash(password: String, salt: String): String {
-        val spec = PBEKeySpec(password.toCharArray(), Base64.getDecoder().decode(salt), ITERATIONS, KEY_LENGTH)
+        val spec = PBEKeySpec(password.toCharArray(), Base64.decode(salt, Base64.NO_WRAP), ITERATIONS, KEY_LENGTH)
         val factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")
         val key = factory.generateSecret(spec)
-        return Base64.getEncoder().encodeToString(key.encoded)
+        return Base64.encodeToString(key.encoded, Base64.NO_WRAP)
     }
 
     fun verify(password: String, salt: String, hash: String): Boolean {
