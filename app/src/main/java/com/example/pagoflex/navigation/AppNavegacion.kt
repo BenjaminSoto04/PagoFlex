@@ -266,14 +266,3 @@ fun AppNavegacion() {
     }
 
 }
-
-@Composable
-fun PantallaTemporal(titulo: String, onVolver: () -> Unit) {
-    Column(modifier = Modifier.fillMaxSize().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-        Text(text = titulo)
-        Spacer(modifier = Modifier.height(16.dp))
-        Text(text = "Pantalla en construcción")
-        Spacer(modifier = Modifier.height(24.dp))
-        Button(onClick = onVolver) { Text("Volver al inicio") }
-    }
-}

@@ -291,7 +291,7 @@ fun TarjetaPagoHistorial(
 ) {
 
     val formatoPesos = NumberFormat.getNumberInstance(
-        Locale("es", "CL")
+        Locale.forLanguageTag("es-CL")
     )
 
     Card(

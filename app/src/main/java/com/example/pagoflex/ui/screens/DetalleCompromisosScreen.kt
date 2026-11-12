@@ -66,7 +66,7 @@ fun DetalleCompromisoScreen(
 
     // Formato de pesos chilenos
     val formatoPesos = NumberFormat.getNumberInstance(
-        Locale("es", "CL")
+        Locale.forLanguageTag("es-CL")
     )
 
     // Total del compromiso

@@ -55,7 +55,7 @@ fun PagoScreen(
 
     // Formatear montos
     val formatoPesos = NumberFormat.getNumberInstance(
-        Locale("es", "CL")
+        Locale.forLanguageTag("es-CL")
     )
 
     Column(

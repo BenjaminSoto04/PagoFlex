@@ -164,7 +164,7 @@ fun TarjetaCompromiso(
 ) {
 
     val formatoPesos = NumberFormat.getNumberInstance(
-        Locale("es", "CL")
+        Locale.forLanguageTag("es-CL")
     )
 
     val total = compromiso.monto +

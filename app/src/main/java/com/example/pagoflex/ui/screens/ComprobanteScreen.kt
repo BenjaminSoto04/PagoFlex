@@ -64,7 +64,7 @@ fun ComprobanteScreen(
 
     // Formato de pesos chilenos
     val formatoPesos = NumberFormat.getNumberInstance(
-        Locale("es", "CL")
+        Locale.forLanguageTag("es-CL")
     )
 
     Column(
