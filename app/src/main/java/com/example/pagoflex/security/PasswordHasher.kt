@@ -29,11 +29,11 @@ object PasswordHasher {
 
     fun validate(password: String): List<String> {
         val errors = mutableListOf<String>()
-        if (password.length < 8) errors.add("Mínimo 8 caracteres")
-        if (!password.any { it.isUpperCase() }) errors.add("Al menos una letra mayúscula")
-        if (!password.any { it.isLowerCase() }) errors.add("Al menos una letra minúscula")
-        if (!password.any { it.isDigit() }) errors.add("Al menos un número")
-        if (!password.any { !it.isLetterOrDigit() }) errors.add("Al menos un carácter especial")
+        if (password.length < 8) errors.add("Debe tener al menos 8 caracteres")
+        if (!password.any { it.isUpperCase() }) errors.add("Debe incluir al menos una letra mayúscula")
+        if (!password.any { it.isLowerCase() }) errors.add("Debe incluir al menos una letra minúscula")
+        if (!password.any { it.isDigit() }) errors.add("Debe incluir al menos un número")
+        if (!password.any { !it.isLetterOrDigit() }) errors.add("Debe incluir al menos un carácter especial")
         return errors
     }
 }
