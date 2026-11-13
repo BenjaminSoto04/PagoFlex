@@ -51,7 +51,7 @@ fun InicioScreen(
     val proximoCompromiso = activos.filter { it.estado == EstadoCompromiso.PENDIENTE }.minByOrNull { LocalDate.parse(it.fechaVencimiento, formatoFecha) }
     val formatoPesos = NumberFormat.getNumberInstance(Locale.forLanguageTag("es-CL"))
 
-    Column(Modifier.fillMaxSize().padding(20.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    Column(Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Column {
                 Text("Hola, ${nombreUsuario ?: "Usuario"}", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = TextoOscuro)
@@ -64,8 +64,8 @@ fun InicioScreen(
             Text("${activos.size} compromisos activos", style = MaterialTheme.typography.bodyMedium)
         }
         PagoFlexCard {
-            Text("Proximo vencimiento", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-            Text(proximoCompromiso?.fechaVencimiento ?: "Sin vencimientos proximos", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Text("Próximo vencimiento", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text(proximoCompromiso?.fechaVencimiento ?: "Sin vencimientos próximos", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
             proximoCompromiso?.let { Text(it.empresa, style = MaterialTheme.typography.bodyMedium) }
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -77,10 +77,10 @@ fun InicioScreen(
             PagoFlexCard(Modifier.weight(1f)) {
                 Text("Vencidos", style = MaterialTheme.typography.titleSmall)
                 Text(cantidadVencidos.toString(), fontWeight = FontWeight.Bold, color = Color(0xFFE53935))
-                Text(if (cantidadVencidos == 0) "Al dia" else "Revisar", style = MaterialTheme.typography.bodySmall)
+                Text(if (cantidadVencidos == 0) "Al día" else "Revisar", style = MaterialTheme.typography.bodySmall)
             }
         }
-        SectionHeader("Accesos rapidos")
+        SectionHeader("Accesos rápidos")
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             PagoFlexPrimaryButton("Pagar", onVerCompromisos, Modifier.weight(1f))
             PagoFlexSecondaryButton("Compromisos", onVerCompromisos, Modifier.weight(1f))

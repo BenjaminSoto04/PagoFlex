@@ -1,46 +1,43 @@
 package com.example.pagoflex.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.pagoflex.R
 import com.example.pagoflex.data.session.SessionManager
+import com.example.pagoflex.ui.styles.BotonPrimario
+import com.example.pagoflex.ui.styles.EstiloCampo
 import com.example.pagoflex.ui.theme.PagoFlexTheme
-import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.pagoflex.viewmodel.PagosViewModel
 import com.example.pagoflex.viewmodel.ReportarProblemaViewModel
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 @Composable
 fun ReportarProblemaScreen(
     modifier: Modifier = Modifier,
     onVolver: () -> Unit = {},
-    reportarViewModel: ReportarProblemaViewModel? = null
+    reportarViewModel: ReportarProblemaViewModel? = null,
+    pagosViewModel: PagosViewModel = viewModel()
 ) {
     val vm = reportarViewModel ?: viewModel()
     val enviado by vm.enviado.collectAsStateWithLifecycle()
@@ -49,26 +46,24 @@ fun ReportarProblemaScreen(
     var compromiso by remember { mutableStateOf("") }
     var descripcion by remember { mutableStateOf("") }
 
-    var menuTipoAbierto by remember { mutableStateOf(false) }
-    var menuCompromisoAbierto by remember { mutableStateOf(false) }
-
     val errorTipo by vm.errorTipo.collectAsStateWithLifecycle()
     val errorCompromiso by vm.errorCompromiso.collectAsStateWithLifecycle()
     val errorDescripcion by vm.errorDescripcion.collectAsStateWithLifecycle()
-    var reporteEnviado by remember { mutableStateOf(false) }
+    val errorGeneral by vm.errorGeneral.collectAsStateWithLifecycle()
+
+    val todosLosCompromisos by pagosViewModel.compromisos.collectAsStateWithLifecycle()
+    val misCompromisos = remember(todosLosCompromisos, currentUserId) {
+        todosLosCompromisos.filter { it.idUsuario == currentUserId }
+    }
+
+    LaunchedEffect(Unit) { vm.reset() }
 
     val tiposProblema = listOf(
         "Problema con un pago",
         "Error en un comprobante",
         "Compromiso incorrecto",
-        "Problema con la aplicacion",
+        "Problema con la aplicación",
         "Otro"
-    )
-
-    val compromisos = listOf(
-        "Cuenta de agua",
-        "Electricidad",
-        "Internet"
     )
 
     Column(
@@ -76,8 +71,8 @@ fun ReportarProblemaScreen(
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
             .imePadding()
-            .padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         TextButton(onClick = onVolver) {
             Text("← Volver")
@@ -103,123 +98,72 @@ fun ReportarProblemaScreen(
             text = stringResource(R.string.reportar_descripcion)
         )
 
-        Text(stringResource(R.string.tipo_problema))
-
-        Box {
-            OutlinedButton(
-                onClick = { menuTipoAbierto = true },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(
-                    text = tipoProblema.ifEmpty {
-                        stringResource(R.string.selecciona_opcion)
-                    }
-                )
+        EstiloCampo.CampoSelector(
+            label = stringResource(R.string.tipo_problema),
+            opciones = tiposProblema,
+            textoOpcion = { it },
+            seleccionado = tipoProblema.ifEmpty { null },
+            placeholder = stringResource(R.string.selecciona_opcion),
+            isError = errorTipo != null,
+            onSeleccionar = {
+                tipoProblema = it
+                vm.limpiarErrorTipo()
             }
+        )
+        EstiloCampo.MensajeError(errorTipo)
 
-            DropdownMenu(
-                expanded = menuTipoAbierto,
-                onDismissRequest = {
-                    menuTipoAbierto = false
-                }
-            ) {
-                tiposProblema.forEach { tipo ->
-                    DropdownMenuItem(
-                        text = { Text(tipo) },
-                        onClick = {
-                            tipoProblema = tipo
-                            menuTipoAbierto = false
-                        }
-                    )
-                }
+        EstiloCampo.CampoSelector(
+            label = stringResource(R.string.compromiso_relacionado),
+            opciones = misCompromisos,
+            textoOpcion = { "${it.folio} · ${it.empresa}" },
+            seleccionado = compromiso.ifEmpty { null },
+            placeholder = stringResource(R.string.selecciona_compromiso),
+            isError = errorCompromiso != null,
+            enabled = misCompromisos.isNotEmpty(),
+            onSeleccionar = {
+                compromiso = it.folio
+                vm.limpiarErrorCompromiso()
             }
-        }
-
-        if (errorTipo) {
+        )
+        EstiloCampo.MensajeError(errorCompromiso)
+        if (misCompromisos.isEmpty()) {
             Text(
-                text = stringResource(R.string.error_tipo),
-                color = MaterialTheme.colorScheme.error
+                text = "No tienes compromisos registrados para asociar al reporte.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
 
-        Text(stringResource(R.string.compromiso_relacionado))
-
-        Box {
-            OutlinedButton(
-                onClick = {
-                    menuCompromisoAbierto = true
-                },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(
-                    text = compromiso.ifEmpty {
-                        stringResource(R.string.selecciona_compromiso)
-                    }
-                )
-            }
-
-            DropdownMenu(
-                expanded = menuCompromisoAbierto,
-                onDismissRequest = {
-                    menuCompromisoAbierto = false
-                }
-            ) {
-                compromisos.forEach { nombre ->
-                    DropdownMenuItem(
-                        text = { Text(nombre) },
-                        onClick = {
-                            compromiso = nombre
-                            menuCompromisoAbierto = false
-                        }
-                    )
-                }
-            }
-        }
-
-        if (errorCompromiso) {
-            Text(
-                text = stringResource(R.string.error_compromiso),
-                color = MaterialTheme.colorScheme.error
-            )
-        }
-
-        OutlinedTextField(
+        EstiloCampo.CampoMultilinea(
             value = descripcion,
             onValueChange = {
                 descripcion = it
+                vm.limpiarErrorDescripcion()
             },
-            modifier = Modifier.fillMaxWidth(),
-            label = {
-                Text(stringResource(R.string.descripcion_problema))
-            },
-            placeholder = {
-                Text(stringResource(R.string.placeholder_descripcion))
-            },
+            label = stringResource(R.string.descripcion_problema),
+            placeholder = { Text(stringResource(R.string.placeholder_descripcion)) },
             minLines = 4,
-            isError = errorDescripcion
+            isError = errorDescripcion != null
         )
+        EstiloCampo.MensajeError(errorDescripcion)
 
-        if (errorDescripcion) {
-            Text(
-                text = stringResource(R.string.error_descripcion),
-                color = MaterialTheme.colorScheme.error
-            )
-        }
+        EstiloCampo.MensajeError(errorGeneral)
 
-        Button(
+        BotonPrimario(
+            text = stringResource(R.string.enviar_reporte),
             onClick = {
                 vm.validarYEnviar(tipoProblema, compromiso, descripcion, currentUserId)
-            },
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text(stringResource(R.string.enviar_reporte))
-        }
+            }
+        )
     }
 
     if (enviado) {
         AlertDialog(
             onDismissRequest = {
-                reporteEnviado = false
+                vm.reset()
+                tipoProblema = ""
+                compromiso = ""
+                descripcion = ""
             },
             title = {
                 Text(stringResource(R.string.reporte_recibido))

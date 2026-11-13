@@ -24,6 +24,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 import com.example.pagoflex.data.session.SessionManager
+import com.example.pagoflex.ui.styles.BotonPrimario
+import com.example.pagoflex.ui.styles.EstilosTarjeta
 import com.example.pagoflex.viewmodel.PagosViewModel
 import androidx.compose.ui.platform.LocalContext
 
@@ -71,10 +73,10 @@ fun ComprobanteScreen(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(20.dp),
+            .padding(16.dp),
 
         verticalArrangement =
-            Arrangement.spacedBy(16.dp)
+            Arrangement.spacedBy(12.dp)
     ) {
 
         TextButton(onClick = onVolver) {
@@ -91,15 +93,10 @@ fun ComprobanteScreen(
         if (compromiso == null || pago == null) {
 
             Text(
-                text = "No se encontro un comprobante para este compromiso."
+                text = "No se encontró un comprobante para este compromiso."
             )
 
-            Button(
-                onClick = onIrInicio,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Volver al inicio")
-            }
+            BotonPrimario(text = "Volver al inicio", onClick = onIrInicio)
 
         } else {
 
@@ -130,17 +127,7 @@ fun ComprobanteScreen(
             val pagoATiempo =
                 !fechaPago.isAfter(fechaVencimiento)
 
-            Card(
-                modifier = Modifier.fillMaxWidth()
-            ) {
-
-                Column(
-                    modifier = Modifier.padding(20.dp),
-
-                    verticalArrangement =
-                        Arrangement.spacedBy(12.dp)
-                ) {
-
+            EstilosTarjeta.Tarjeta {
                     // Confirmacion visual
                     Text(
                         text = "✓ Pago confirmado",
@@ -243,21 +230,15 @@ fun ComprobanteScreen(
                         text = if (pagoATiempo)
                             "Pago realizado a tiempo"
                         else
-                            "Pago realizado despues del vencimiento"
+                            "Pago realizado después del vencimiento"
                     )
-                }
             }
 
-            Card(
-                colors = CardDefaults.cardColors(
-                    containerColor =
-                        MaterialTheme.colorScheme.surfaceVariant
-                )
+            EstilosTarjeta.Tarjeta(
+                color = MaterialTheme.colorScheme.surfaceVariant
             ) {
-
                 Text(
-                    text = "Este comprobante corresponde a un pago simulado con fines academicos. No representa una transaccion bancaria real.",
-                    modifier = Modifier.padding(16.dp),
+                    text = "Este comprobante corresponde a un pago simulado con fines académicos. No representa una transacción bancaria real.",
                     style = MaterialTheme.typography.bodySmall
                 )
             }
@@ -269,24 +250,26 @@ fun ComprobanteScreen(
                     pago?.let { pagosViewModel.adjuntarFotoPago(it.id, photoUri.toString()) }
                 }
             }
-            Button(onClick = {
-                val file = File(context.getExternalFilesDir(Environment.DIRECTORY_PICTURES), "comprobante_${System.currentTimeMillis()}.jpg")
-                file.parentFile?.mkdirs()
-                val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
-                photoUri = uri
-                cameraLauncher.launch(uri)
-            }, modifier = Modifier.fillMaxWidth()) {
-                Text("Tomar foto del comprobante")
-            }
+            BotonPrimario(
+                text = "Tomar foto del comprobante",
+                onClick = {
+                    val file = File(
+                        context.getExternalFilesDir(Environment.DIRECTORY_PICTURES),
+                        "comprobante_${System.currentTimeMillis()}.jpg"
+                    )
+                    file.parentFile?.mkdirs()
+                    val uri = FileProvider.getUriForFile(
+                        context,
+                        "${context.packageName}.fileprovider",
+                        file
+                    )
+                    photoUri = uri
+                    cameraLauncher.launch(uri)
+                }
+            )
             pago?.fotoUri?.let { Text("Foto adjunta: $it", style = MaterialTheme.typography.bodySmall) }
 
-            Button(
-                onClick = onIrInicio,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-
-                Text("Volver al inicio")
-            }
+            BotonPrimario(text = "Volver al inicio", onClick = onIrInicio)
         }
     }
 }

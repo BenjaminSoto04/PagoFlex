@@ -2,12 +2,15 @@ package com.example.pagoflex.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -15,19 +18,14 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -37,78 +35,73 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.pagoflex.model.Compromiso
+import com.example.pagoflex.model.EstadoCompromiso
+import com.example.pagoflex.data.local.entity.UserEntity
+import com.example.pagoflex.ui.styles.BotonPrimario
+import com.example.pagoflex.ui.styles.EstiloCampo
+import com.example.pagoflex.ui.styles.EstilosTarjeta
+import com.example.pagoflex.ui.styles.Validaciones
+import com.example.pagoflex.ui.styles.etiquetaEstado
+import com.example.pagoflex.ui.styles.formatearFecha
+import com.example.pagoflex.ui.styles.formatearPesos
+import com.example.pagoflex.viewmodel.EjecutivoViewModel
 
-private data class CompromisoGestion(
-    val folio: String,
-    val cliente: String,
-    val monto: Int,
-    val fecha: String,
-    val estado: String,
-    val motivoAnulacion: String = ""
+private val filtrosGestion = listOf(
+    "Todos",
+    "Pendiente",
+    "Pagado",
+    "Vencido",
+    "En revisión",
+    "Anulado"
 )
 
 @Composable
 fun GestionAnulacionCompromisosScreen(
-    onVolver: () -> Unit = {}
+    user: UserEntity? = null,
+    onVolver: () -> Unit = {},
+    ejecutivoViewModel: EjecutivoViewModel = viewModel()
 ) {
-    val compromisos = remember {
-        mutableStateListOf(
-            CompromisoGestion(
-                "PF-2001", "Cliente 001", 150000,
-                "22/10/2026", "Pendiente"
-            ),
-            CompromisoGestion(
-                "PF-2002", "Cliente 002", 85000,
-                "18/10/2026", "Pagado"
-            ),
-            CompromisoGestion(
-                "PF-2003", "Cliente 003", 220000,
-                "15/10/2026", "Vencido"
-            ),
-            CompromisoGestion(
-                "PF-2004", "Cliente 004", 120000,
-                "25/10/2026", "Pendiente"
-            ),
-            CompromisoGestion(
-                "PF-2005", "Cliente 005", 95000,
-                "19/10/2026", "Anulado",
-                "Solicitud de ejemplo"
-            )
-        )
+    val compromisosTodos by ejecutivoViewModel.compromisos.collectAsStateWithLifecycle()
+    val usuarios by ejecutivoViewModel.usuarios.collectAsStateWithLifecycle()
+    val usuarioActual by ejecutivoViewModel.usuarioActual.collectAsStateWithLifecycle()
+    val mensaje by ejecutivoViewModel.success.collectAsStateWithLifecycle()
+    val errorGeneral by ejecutivoViewModel.error.collectAsStateWithLifecycle()
+
+    val empresaId = (user ?: usuarioActual)?.empresaId
+    val nombresUsuarios = remember(usuarios) { usuarios.associate { it.id to it.nombre } }
+
+    val compromisos = remember(compromisosTodos, empresaId) {
+        if (empresaId == null) emptyList()
+        else compromisosTodos.filter { it.idEmpresa == empresaId }
     }
 
-    var filtroSeleccionado by remember {
-        mutableStateOf("Todos")
-    }
+    var filtroSeleccionado by remember { mutableStateOf("Todos") }
 
     var compromisoSeleccionado by remember {
-        mutableStateOf<CompromisoGestion?>(null)
+        mutableStateOf<Compromiso?>(null)
     }
 
     var motivo by remember {
         mutableStateOf("")
     }
 
+    var errorMotivo by remember {
+        mutableStateOf<String?>(null)
+    }
+
     var mostrarDialogo by remember {
         mutableStateOf(false)
     }
 
-    var mensajeResultado by remember {
-        mutableStateOf("")
-    }
-
     val compromisosFiltrados = compromisos.filter {
-        filtroSeleccionado == "Todos" ||
-                it.estado == filtroSeleccionado
+        filtroSeleccionado == "Todos" || etiquetaEstado(it.estado) == filtroSeleccionado
     }
 
-    val pendientes = compromisos.count {
-        it.estado == "Pendiente"
-    }
-
-    val vencidos = compromisos.count {
-        it.estado == "Vencido"
-    }
+    val pendientes = compromisos.count { it.estado == EstadoCompromiso.PENDIENTE }
+    val vencidos = compromisos.count { it.estado == EstadoCompromiso.VENCIDO }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background
@@ -133,9 +126,7 @@ fun GestionAnulacionCompromisosScreen(
                     shape = CircleShape,
                     color = Color.White
                 ) {
-                    androidx.compose.foundation.layout.Box(
-                        contentAlignment = Alignment.Center
-                    ) {
+                    Box(contentAlignment = Alignment.Center) {
                         Text(
                             text = "PF",
                             color = MaterialTheme.colorScheme.primary,
@@ -150,14 +141,14 @@ fun GestionAnulacionCompromisosScreen(
                         .padding(start = 12.dp)
                 ) {
                     Text(
-                        text = "Gestion de compromisos",
+                        text = "Gestión de compromisos",
                         color = Color.White,
                         fontSize = 19.sp,
                         fontWeight = FontWeight.Bold
                     )
 
                     Text(
-                        text = "Consulta y anulacion",
+                        text = "Consulta y anulación",
                         color = Color.White.copy(alpha = 0.85f),
                         fontSize = 13.sp
                     )
@@ -172,14 +163,13 @@ fun GestionAnulacionCompromisosScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .weight(1f),
-                contentPadding = androidx.compose.foundation.layout
-                    .PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                contentPadding = PaddingValues(12.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
 
                 item {
                     Text(
-                        text = "Resumen de gestion",
+                        text = "Resumen de gestión",
                         style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.Bold
                     )
@@ -235,14 +225,10 @@ fun GestionAnulacionCompromisosScreen(
                         Row(
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            listOf("Todos", "Pendiente", "Pagado").forEach {
-                                    estado ->
+                            filtrosGestion.take(3).forEach { estado ->
                                 FilterChip(
                                     selected = filtroSeleccionado == estado,
-                                    onClick = {
-                                        filtroSeleccionado = estado
-                                        mensajeResultado = ""
-                                    },
+                                    onClick = { filtroSeleccionado = estado },
                                     label = { Text(estado) }
                                 )
                             }
@@ -251,14 +237,10 @@ fun GestionAnulacionCompromisosScreen(
                         Row(
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            listOf("Vencido", "Anulado").forEach {
-                                    estado ->
+                            filtrosGestion.drop(3).forEach { estado ->
                                 FilterChip(
                                     selected = filtroSeleccionado == estado,
-                                    onClick = {
-                                        filtroSeleccionado = estado
-                                        mensajeResultado = ""
-                                    },
+                                    onClick = { filtroSeleccionado = estado },
                                     label = { Text(estado) }
                                 )
                             }
@@ -266,11 +248,21 @@ fun GestionAnulacionCompromisosScreen(
                     }
                 }
 
-                if (mensajeResultado.isNotEmpty()) {
+                mensaje?.let { texto ->
                     item {
                         Text(
-                            text = mensajeResultado,
+                            text = texto,
                             color = MaterialTheme.colorScheme.primary,
+                            fontSize = 13.sp
+                        )
+                    }
+                }
+
+                errorGeneral?.let { texto ->
+                    item {
+                        Text(
+                            text = texto,
+                            color = MaterialTheme.colorScheme.error,
                             fontSize = 13.sp
                         )
                     }
@@ -284,20 +276,37 @@ fun GestionAnulacionCompromisosScreen(
                     )
                 }
 
-                if (compromisosFiltrados.isEmpty()) {
+                if (compromisos.isEmpty()) {
                     item {
-                        Text("No hay compromisos en este estado.")
+                        Text(
+                            text = if (empresaId == null) {
+                                "Tu usuario no tiene una empresa asignada, por lo que no hay compromisos para gestionar."
+                            } else {
+                                "No hay compromisos registrados para esta empresa."
+                            },
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                } else if (compromisosFiltrados.isEmpty()) {
+                    item {
+                        Text(
+                            text = "No hay compromisos con el estado \"$filtroSeleccionado\".",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 } else {
                     items(
                         items = compromisosFiltrados,
-                        key = { it.folio }
+                        key = { it.id }
                     ) { compromiso ->
                         TarjetaGestionCompromiso(
                             compromiso = compromiso,
+                            nombreCliente = nombresUsuarios[compromiso.idUsuario]
+                                ?: "Usuario #${compromiso.idUsuario}",
                             onAnular = {
                                 compromisoSeleccionado = compromiso
                                 motivo = ""
+                                errorMotivo = null
                                 mostrarDialogo = true
                             }
                         )
@@ -308,7 +317,7 @@ fun GestionAnulacionCompromisosScreen(
                     Spacer(modifier = Modifier.height(8.dp))
 
                     Text(
-                        text = "Datos ficticios para pruebas.",
+                        text = "Información obtenida de la base de datos local de PagoFlex.",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 12.sp
                     )
@@ -326,6 +335,7 @@ fun GestionAnulacionCompromisosScreen(
                 mostrarDialogo = false
                 compromisoSeleccionado = null
             },
+            modifier = Modifier.imePadding(),
             title = {
                 Text("Anular compromiso")
             },
@@ -335,64 +345,47 @@ fun GestionAnulacionCompromisosScreen(
                 ) {
                     Text(
                         text = "Folio: ${compromiso.folio}\n" +
-                                "Cliente: ${compromiso.cliente}\n" +
-                                "Monto: ${formatearMontoGestion(compromiso.monto)}"
+                                "Cliente: ${nombresUsuarios[compromiso.idUsuario] ?: "Usuario #${compromiso.idUsuario}"}\n" +
+                                "Monto: ${formatearPesos(compromiso.monto + compromiso.recargoAplicado)}"
                     )
 
                     Text(
-                        text = "Indica el motivo de la anulacion:"
+                        text = "Indica el motivo de la anulación:"
                     )
 
-                    OutlinedTextField(
+                    EstiloCampo.CampoMultilinea(
                         value = motivo,
-                        onValueChange = { motivo = it },
-                        modifier = Modifier.fillMaxWidth(),
-                        placeholder = {
-                            Text("Escribe el motivo...")
+                        onValueChange = {
+                            motivo = it
+                            errorMotivo = null
                         },
+                        label = "Motivo",
+                        placeholder = { Text("Escribe el motivo...") },
                         minLines = 2,
-                        maxLines = 4
+                        maxLines = 4,
+                        isError = errorMotivo != null
                     )
+                    EstiloCampo.MensajeError(errorMotivo)
                 }
             },
             confirmButton = {
-                Button(
+                BotonPrimario(
+                    text = "Confirmar",
+                    anchoCompleto = false,
                     onClick = {
-                        val indice = compromisos.indexOfFirst {
-                            it.folio == compromiso.folio
-                        }
+                        val error = Validaciones.motivoAnulacion(motivo)
+                        errorMotivo = error
+                        if (error != null) return@BotonPrimario
 
-                        if (indice >= 0) {
-                            val actual = compromisos[indice]
-
-                            if (
-                                actual.estado == "Pendiente" ||
-                                actual.estado == "Vencido"
-                            ) {
-                                compromisos[indice] = actual.copy(
-                                    estado = "Anulado",
-                                    motivoAnulacion = motivo.trim()
-                                )
-
-                                mensajeResultado =
-                                    "El compromiso ${actual.folio} fue anulado."
-                            } else {
-                                mensajeResultado =
-                                    "Este compromiso ya no se puede anular."
-                            }
-                        }
+                        ejecutivoViewModel.limpiarMensajes()
+                        ejecutivoViewModel.anularCompromiso(compromiso.id, motivo)
 
                         mostrarDialogo = false
                         compromisoSeleccionado = null
                     },
-                    enabled = motivo.isNotBlank() &&
-                            (
-                                    compromiso.estado == "Pendiente" ||
-                                            compromiso.estado == "Vencido"
-                                    )
-                ) {
-                    Text("Confirmar")
-                }
+                    enabled = compromiso.estado == EstadoCompromiso.PENDIENTE ||
+                            compromiso.estado == EstadoCompromiso.VENCIDO
+                )
             },
             dismissButton = {
                 TextButton(
@@ -415,136 +408,112 @@ private fun IndicadorGestion(
     colorIndicador: Color,
     modifier: Modifier = Modifier
 ) {
-    Card(
+    EstilosTarjeta.Tarjeta(
         modifier = modifier,
-        shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
-        )
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        relleno = PaddingValues(12.dp),
+        separacion = 4.dp
     ) {
-        Column(
-            modifier = Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            Text(
-                text = titulo,
-                fontSize = 12.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+        Text(
+            text = titulo,
+            fontSize = 12.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
 
-            Text(
-                text = cantidad.toString(),
-                fontSize = 24.sp,
-                fontWeight = FontWeight.Bold,
-                color = colorIndicador
-            )
-        }
+        Text(
+            text = cantidad.toString(),
+            fontSize = 24.sp,
+            fontWeight = FontWeight.Bold,
+            color = colorIndicador
+        )
     }
+}
+
+private fun colorEstadoGestion(estado: EstadoCompromiso): Color = when (estado) {
+    EstadoCompromiso.PAGADO -> Color(0xFF2E7D32)
+    EstadoCompromiso.VENCIDO -> Color(0xFFC62828)
+    EstadoCompromiso.ANULADO -> Color(0xFF757575)
+    else -> Color(0xFFB26A00)
 }
 
 @Composable
 private fun TarjetaGestionCompromiso(
-    compromiso: CompromisoGestion,
+    compromiso: Compromiso,
+    nombreCliente: String,
     onAnular: () -> Unit
 ) {
-    val colorEstado = when (compromiso.estado) {
-        "Pagado" -> Color(0xFF2E7D32)
-        "Vencido" -> Color(0xFFC62828)
-        "Anulado" -> Color(0xFF757575)
-        else -> Color(0xFFB26A00)
-    }
+    val colorEstado = colorEstadoGestion(compromiso.estado)
 
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        ),
-        elevation = CardDefaults.cardElevation(
-            defaultElevation = 2.dp
-        )
-    ) {
-        Column(
-            modifier = Modifier.padding(15.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+    EstilosTarjeta.Tarjeta {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
+            Column(
+                modifier = Modifier.weight(1f)
             ) {
-                Column(
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text(
-                        text = compromiso.cliente,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 16.sp
-                    )
-
-                    Text(
-                        text = "Folio: ${compromiso.folio}",
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-
-                Surface(
-                    shape = RoundedCornerShape(7.dp),
-                    color = colorEstado.copy(alpha = 0.12f)
-                ) {
-                    Text(
-                        text = compromiso.estado,
-                        modifier = Modifier.padding(
-                            horizontal = 9.dp,
-                            vertical = 5.dp
-                        ),
-                        color = colorEstado,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
-            }
-
-            Text(
-                text = formatearMontoGestion(compromiso.monto),
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
-            )
-
-            Text(
-                text = "Fecha: ${compromiso.fecha}",
-                fontSize = 13.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-
-            if (compromiso.motivoAnulacion.isNotBlank()) {
                 Text(
-                    text = "Motivo: ${compromiso.motivoAnulacion}",
+                    text = nombreCliente,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp
+                )
+
+                Text(
+                    text = "Folio: ${compromiso.folio}",
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
 
-            if (
-                compromiso.estado == "Pendiente" ||
-                compromiso.estado == "Vencido"
+            Surface(
+                shape = RoundedCornerShape(7.dp),
+                color = colorEstado.copy(alpha = 0.12f)
             ) {
-                Button(
-                    onClick = onAnular,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Anular compromiso")
-                }
+                Text(
+                    text = etiquetaEstado(compromiso.estado),
+                    modifier = Modifier.padding(
+                        horizontal = 9.dp,
+                        vertical = 5.dp
+                    ),
+                    color = colorEstado,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
             }
         }
-    }
-}
 
-private fun formatearMontoGestion(monto: Int): String {
-    return "$" + monto.toString()
-        .reversed()
-        .chunked(3)
-        .joinToString(".")
-        .reversed()
+        Text(
+            text = formatearPesos(compromiso.monto + compromiso.recargoAplicado),
+            fontSize = 20.sp,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary
+        )
+
+        Text(
+            text = compromiso.concepto,
+            fontSize = 13.sp,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+
+        Text(
+            text = "Vencimiento: ${formatearFecha(compromiso.fechaVencimiento)}",
+            fontSize = 13.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+
+        compromiso.motivoAnulacion?.takeIf { it.isNotBlank() }?.let { texto ->
+            Text(
+                text = "Motivo de anulación: $texto",
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+
+        if (
+            compromiso.estado == EstadoCompromiso.PENDIENTE ||
+            compromiso.estado == EstadoCompromiso.VENCIDO
+        ) {
+            BotonPrimario(text = "Anular compromiso", onClick = onAnular)
+        }
+    }
 }

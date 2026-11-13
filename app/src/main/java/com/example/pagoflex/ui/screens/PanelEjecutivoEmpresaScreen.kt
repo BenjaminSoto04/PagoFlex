@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -11,15 +12,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -38,73 +36,68 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.pagoflex.data.local.entity.UserEntity
+import com.example.pagoflex.model.Compromiso
+import com.example.pagoflex.model.EstadoCompromiso
+import com.example.pagoflex.ui.styles.BotonPrimario
+import com.example.pagoflex.ui.styles.EstilosTarjeta
+import com.example.pagoflex.ui.styles.etiquetaEstado
+import com.example.pagoflex.ui.styles.formatearFecha
+import com.example.pagoflex.ui.styles.formatearPesos
+import com.example.pagoflex.viewmodel.EjecutivoViewModel
 
-private data class CompromisoEjecutivo(
-    val folio: String,
-    val cliente: String,
-    val monto: Int,
-    val fecha: String,
-    val estado: String
+private val filtrosPanel = listOf(
+    "Todos",
+    "Pendiente",
+    "Pagado",
+    "Vencido",
+    "En revisión",
+    "Anulado"
 )
 
 @Composable
 fun PanelEjecutivoEmpresaScreen(
-    user: com.example.pagoflex.data.local.entity.UserEntity? = null,
+    user: UserEntity? = null,
     onVolver: () -> Unit = {},
     onCerrarSesion: () -> Unit = {},
-    onVerPerfil: () -> Unit = {}
+    onVerPerfil: () -> Unit = {},
+    ejecutivoViewModel: EjecutivoViewModel = viewModel()
 ) {
-    val compromisos = remember {
-        listOf(
-            CompromisoEjecutivo(
-                "PF-1001", "Cliente 001", 150000,
-                "22/10/2026", "Pendiente"
-            ),
-            CompromisoEjecutivo(
-                "PF-1002", "Cliente 002", 85000,
-                "18/10/2026", "Pagado"
-            ),
-            CompromisoEjecutivo(
-                "PF-1003", "Cliente 003", 220000,
-                "15/10/2026", "Vencido"
-            ),
-            CompromisoEjecutivo(
-                "PF-1004", "Cliente 004", 120000,
-                "25/10/2026", "Pendiente"
-            ),
-            CompromisoEjecutivo(
-                "PF-1005", "Cliente 005", 95000,
-                "19/10/2026", "Pagado"
-            )
-        )
+    val compromisosTodos by ejecutivoViewModel.compromisos.collectAsStateWithLifecycle()
+    val pagos by ejecutivoViewModel.pagos.collectAsStateWithLifecycle()
+    val usuarios by ejecutivoViewModel.usuarios.collectAsStateWithLifecycle()
+    val usuarioActual by ejecutivoViewModel.usuarioActual.collectAsStateWithLifecycle()
+    val mensaje by ejecutivoViewModel.success.collectAsStateWithLifecycle()
+
+    val ejecutivo = user ?: usuarioActual
+    val empresaId = ejecutivo?.empresaId
+    val nombresUsuarios = remember(usuarios) { usuarios.associate { it.id to it.nombre } }
+
+    val compromisos = remember(compromisosTodos, empresaId) {
+        if (empresaId == null) emptyList()
+        else compromisosTodos.filter { it.idEmpresa == empresaId }
     }
 
-    var filtroSeleccionado by remember {
-        mutableStateOf("Todos")
+    val pagosEmpresa = remember(pagos, compromisos) {
+        val idsCompromisos = compromisos.map { it.id }.toSet()
+        pagos.filter { it.idCompromiso in idsCompromisos }
     }
 
-    var actualizado by remember {
-        mutableStateOf(false)
-    }
+    var filtroSeleccionado by remember { mutableStateOf("Todos") }
 
     val compromisosFiltrados = compromisos.filter {
-        filtroSeleccionado == "Todos" ||
-                it.estado == filtroSeleccionado
+        filtroSeleccionado == "Todos" || etiquetaEstado(it.estado) == filtroSeleccionado
     }
 
     val totalComprometido = compromisos.sumOf { it.monto }
+    val totalRecaudado = pagosEmpresa.sumOf { it.montoPagado }
+    val pendientes = compromisos.count { it.estado == EstadoCompromiso.PENDIENTE }
+    val vencidos = compromisos.count { it.estado == EstadoCompromiso.VENCIDO }
 
-    val totalRecaudado = compromisos
-        .filter { it.estado == "Pagado" }
-        .sumOf { it.monto }
-
-    val pendientes = compromisos.count {
-        it.estado == "Pendiente"
-    }
-
-    val vencidos = compromisos.count {
-        it.estado == "Vencido"
-    }
+    val nombreEmpresa = ejecutivo?.empresa?.takeIf { it.isNotBlank() }
+        ?: compromisos.firstOrNull()?.empresa
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background
@@ -130,7 +123,7 @@ fun PanelEjecutivoEmpresaScreen(
                     color = Color.White
                 ) {
                     Box(contentAlignment = Alignment.Center) {
-                        val foto = user?.fotoUri
+                        val foto = ejecutivo?.fotoUri
                         val file = if (foto != null) java.io.File(foto) else null
                         if (file != null && file.exists()) {
                             val bmp = android.graphics.BitmapFactory.decodeFile(file.absolutePath)
@@ -163,7 +156,7 @@ fun PanelEjecutivoEmpresaScreen(
                     )
 
                     Text(
-                        text = "Gestión de PagoFlex",
+                        text = nombreEmpresa ?: "Gestión de PagoFlex",
                         color = Color.White.copy(alpha = 0.85f),
                         fontSize = 13.sp
                     )
@@ -184,11 +177,11 @@ fun PanelEjecutivoEmpresaScreen(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth(),
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                    horizontal = 16.dp,
-                    vertical = 16.dp
+                contentPadding = PaddingValues(
+                    horizontal = 12.dp,
+                    vertical = 12.dp
                 ),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 item {
                     Column {
@@ -201,7 +194,11 @@ fun PanelEjecutivoEmpresaScreen(
                         Spacer(modifier = Modifier.height(4.dp))
 
                         Text(
-                            text = "Estado de los compromisos de la empresa",
+                            text = if (nombreEmpresa != null) {
+                                "Compromisos registrados para $nombreEmpresa"
+                            } else {
+                                "Compromisos registrados en la base local"
+                            },
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontSize = 14.sp
                         )
@@ -248,18 +245,14 @@ fun PanelEjecutivoEmpresaScreen(
                 }
 
                 item {
-                    Button(
-                        onClick = {
-                            actualizado = true
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("Actualizar información")
-                    }
+                    BotonPrimario(
+                        text = "Actualizar información",
+                        onClick = { ejecutivoViewModel.refrescar() }
+                    )
 
-                    if (actualizado) {
+                    mensaje?.let {
                         Text(
-                            text = "Resumen actualizado con los datos de prueba.",
+                            text = it,
                             color = MaterialTheme.colorScheme.primary,
                             fontSize = 12.sp,
                             modifier = Modifier.padding(top = 4.dp)
@@ -277,50 +270,65 @@ fun PanelEjecutivoEmpresaScreen(
 
                 // Filtros por estado
                 item {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        listOf(
-                            "Todos",
-                            "Pendiente",
-                            "Pagado",
-                            "Vencido"
-                        ).forEach { estado ->
-                            FilterChip(
-                                selected = filtroSeleccionado == estado,
-                                onClick = {
-                                    filtroSeleccionado = estado
-                                },
-                                label = {
-                                    Text(
-                                        text = estado,
-                                        fontSize = 11.sp
-                                    )
-                                }
-                            )
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            filtrosPanel.take(3).forEach { estado ->
+                                FilterChip(
+                                    selected = filtroSeleccionado == estado,
+                                    onClick = { filtroSeleccionado = estado },
+                                    label = { Text(text = estado, fontSize = 11.sp) }
+                                )
+                            }
+                        }
+
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            filtrosPanel.drop(3).forEach { estado ->
+                                FilterChip(
+                                    selected = filtroSeleccionado == estado,
+                                    onClick = { filtroSeleccionado = estado },
+                                    label = { Text(text = estado, fontSize = 11.sp) }
+                                )
+                            }
                         }
                     }
                 }
 
                 // Lista de compromisos
-                if (compromisosFiltrados.isEmpty()) {
+                if (compromisos.isEmpty()) {
                     item {
-                        Text("No hay compromisos para este filtro.")
+                        Text(
+                            text = if (empresaId == null) {
+                                "Tu usuario no tiene una empresa asignada, por lo que no hay compromisos para mostrar."
+                            } else {
+                                "No hay compromisos registrados para esta empresa."
+                            },
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                } else if (compromisosFiltrados.isEmpty()) {
+                    item {
+                        Text(
+                            text = "No hay compromisos con el estado \"$filtroSeleccionado\".",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 } else {
                     items(
                         items = compromisosFiltrados,
-                        key = { it.folio }
+                        key = { it.id }
                     ) { compromiso ->
-                        TarjetaCompromisoEjecutivo(compromiso)
+                        TarjetaCompromisoEjecutivo(
+                            compromiso = compromiso,
+                            nombreCliente = nombresUsuarios[compromiso.idUsuario]
+                                ?: "Usuario #${compromiso.idUsuario}"
+                        )
                     }
                 }
 
                 item {
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "Vista demostrativa con datos ficticios.",
+                        text = "Información obtenida de la base de datos local de PagoFlex.",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 12.sp
                     )
@@ -328,6 +336,13 @@ fun PanelEjecutivoEmpresaScreen(
             }
         }
     }
+}
+
+private fun colorEstadoEjecutivo(estado: EstadoCompromiso): Color = when (estado) {
+    EstadoCompromiso.PAGADO -> Color(0xFF2E7D32)
+    EstadoCompromiso.VENCIDO -> Color(0xFFC62828)
+    EstadoCompromiso.ANULADO -> Color(0xFF757575)
+    else -> Color(0xFFB26A00)
 }
 
 @Composable
@@ -336,112 +351,86 @@ private fun IndicadorEjecutivo(
     valor: String,
     modifier: Modifier = Modifier
 ) {
-    Card(
+    EstilosTarjeta.Tarjeta(
         modifier = modifier,
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
-        )
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        relleno = PaddingValues(12.dp)
     ) {
-        Column(
-            modifier = Modifier.padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Text(
-                text = titulo,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontSize = 12.sp
-            )
+        Text(
+            text = titulo,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontSize = 12.sp
+        )
 
-            Text(
-                text = valor,
-                color = MaterialTheme.colorScheme.onSurface,
-                fontSize = 19.sp,
-                fontWeight = FontWeight.Bold
-            )
-        }
+        Text(
+            text = valor,
+            color = MaterialTheme.colorScheme.onSurface,
+            fontSize = 19.sp,
+            fontWeight = FontWeight.Bold
+        )
     }
 }
 
 @Composable
 private fun TarjetaCompromisoEjecutivo(
-    compromiso: CompromisoEjecutivo
+    compromiso: Compromiso,
+    nombreCliente: String
 ) {
-    val colorEstado = when (compromiso.estado) {
-        "Pagado" -> Color(0xFF2E7D32)
-        "Vencido" -> Color(0xFFC62828)
-        else -> Color(0xFFB26A00)
-    }
+    val colorEstado = colorEstadoEjecutivo(compromiso.estado)
 
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        ),
-        elevation = CardDefaults.cardElevation(
-            defaultElevation = 2.dp
-        )
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+    EstilosTarjeta.Tarjeta {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = compromiso.cliente,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 16.sp
-                    )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = nombreCliente,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp
+                )
 
-                    Text(
-                        text = "Folio: ${compromiso.folio}",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 12.sp
-                    )
-                }
-
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = colorEstado.copy(alpha = 0.12f)
-                ) {
-                    Text(
-                        text = compromiso.estado,
-                        modifier = Modifier.padding(
-                            horizontal = 10.dp,
-                            vertical = 6.dp
-                        ),
-                        color = colorEstado,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
+                Text(
+                    text = "Folio: ${compromiso.folio}",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 12.sp
+                )
             }
 
-            Text(
-                text = formatearPesos(compromiso.monto),
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
-            )
-
-            Text(
-                text = "Fecha de compromiso: ${compromiso.fecha}",
-                fontSize = 13.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            Surface(
+                shape = RoundedCornerShape(8.dp),
+                color = colorEstado.copy(alpha = 0.12f)
+            ) {
+                Text(
+                    text = etiquetaEstado(compromiso.estado),
+                    modifier = Modifier.padding(
+                        horizontal = 10.dp,
+                        vertical = 6.dp
+                    ),
+                    color = colorEstado,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
         }
-    }
-}
 
-private fun formatearPesos(monto: Int): String {
-    return "$" + monto.toString()
-        .reversed()
-        .chunked(3)
-        .joinToString(".")
-        .reversed()
+        Text(
+            text = formatearPesos(compromiso.monto + compromiso.recargoAplicado),
+            fontSize = 20.sp,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary
+        )
+
+        Text(
+            text = compromiso.concepto,
+            fontSize = 13.sp,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+
+        Text(
+            text = "Vencimiento: ${formatearFecha(compromiso.fechaVencimiento)}",
+            fontSize = 13.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
 }

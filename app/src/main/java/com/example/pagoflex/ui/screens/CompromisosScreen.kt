@@ -12,8 +12,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.graphics.Color
+import com.example.pagoflex.ui.styles.BotonTexto
+import com.example.pagoflex.ui.styles.EstilosTarjeta
 import com.example.pagoflex.ui.theme.GrisDeshabilitado
-import com.example.pagoflex.ui.theme.Blanco
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 import com.example.pagoflex.data.session.SessionManager
@@ -71,7 +72,7 @@ fun CompromisosScreen(
             .fillMaxSize()
             .padding(16.dp),
 
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
 
         // Boton para regresar
@@ -109,7 +110,7 @@ fun CompromisosScreen(
                     EstadoCompromiso.PENDIENTE -> "Pendientes"
                     EstadoCompromiso.VENCIDO -> "Vencidos"
                     EstadoCompromiso.PAGADO -> "Pagados"
-                    EstadoCompromiso.EN_REVISION -> "En revision"
+                    EstadoCompromiso.EN_REVISION -> "En revisión"
                     EstadoCompromiso.ANULADO -> "Anulados"
                 }
 
@@ -137,7 +138,7 @@ fun CompromisosScreen(
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
 
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
 
             items(
@@ -178,78 +179,58 @@ fun TarjetaCompromiso(
 
         EstadoCompromiso.PAGADO -> "Pagado"
 
-        EstadoCompromiso.EN_REVISION -> "En revision"
+        EstadoCompromiso.EN_REVISION -> "En revisión"
 
         EstadoCompromiso.ANULADO -> "Anulado"
     }
 
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onClick() },
-        shape = MaterialTheme.shapes.large,
-        colors = CardDefaults.cardColors(containerColor = Blanco),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-    ) {
+    EstilosTarjeta.Tarjeta(onClick = onClick) {
+        // Nombre de la empresa
+        Text(
+            text = compromiso.empresa,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold
+        )
 
-        Column(
-            modifier = Modifier.padding(16.dp),
+        // Concepto
+        Text(
+            text = compromiso.concepto,
+            style = MaterialTheme.typography.bodyMedium
+        )
 
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
+        // Monto
+        Text(
+            text = "$ ${formatoPesos.format(total)}",
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold
+        )
 
-            // Nombre de la empresa
-            Text(
-                text = compromiso.empresa,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
-            )
+        // Fecha de vencimiento
+        Text(
+            text = "Vencimiento: ${compromiso.fechaVencimiento}",
+            style = MaterialTheme.typography.bodySmall
+        )
 
-            // Concepto
-            Text(
-                text = compromiso.concepto,
-                style = MaterialTheme.typography.bodyMedium
-            )
-
-            // Monto
-            Text(
-                text = "$ ${formatoPesos.format(total)}",
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold
-            )
-
-            // Fecha de vencimiento
-            Text(
-                text = "Vencimiento: ${compromiso.fechaVencimiento}",
-                style = MaterialTheme.typography.bodySmall
-            )
-
-            // Estado
-            val colorEstado = when (compromiso.estado) {
-                EstadoCompromiso.PAGADO -> Color(0xFF2E7D32)
-                EstadoCompromiso.VENCIDO -> Color(0xFFE53935)
-                EstadoCompromiso.PENDIENTE -> Color(0xFFEF6C00)
-                else -> GrisDeshabilitado
-            }
-            Text(
-                text = nombreEstado,
-                style = MaterialTheme.typography.bodyMedium,
-                color = colorEstado,
-                fontWeight = FontWeight.SemiBold
-            )
-
-            // Folio
-            Text(
-                text = "Folio: ${compromiso.folio}",
-                style = MaterialTheme.typography.bodySmall
-            )
-
-            TextButton(
-                onClick = onClick
-            ) {
-
-                Text("Ver detalle")
-            }
+        // Estado
+        val colorEstado = when (compromiso.estado) {
+            EstadoCompromiso.PAGADO -> Color(0xFF2E7D32)
+            EstadoCompromiso.VENCIDO -> Color(0xFFE53935)
+            EstadoCompromiso.PENDIENTE -> Color(0xFFEF6C00)
+            else -> GrisDeshabilitado
         }
+        Text(
+            text = nombreEstado,
+            style = MaterialTheme.typography.bodyMedium,
+            color = colorEstado,
+            fontWeight = FontWeight.SemiBold
+        )
+
+        // Folio
+        Text(
+            text = "Folio: ${compromiso.folio}",
+            style = MaterialTheme.typography.bodySmall
+        )
+
+        BotonTexto(text = "Ver detalle", onClick = onClick)
     }
 }

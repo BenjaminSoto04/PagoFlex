@@ -12,6 +12,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 import com.example.pagoflex.data.session.SessionManager
 import com.example.pagoflex.model.Compromiso
+import com.example.pagoflex.ui.styles.BotonTexto
+import com.example.pagoflex.ui.styles.EstilosTarjeta
 import androidx.compose.ui.platform.LocalContext
 import com.example.pagoflex.model.Pago
 import com.example.pagoflex.viewmodel.PagosViewModel
@@ -123,7 +125,7 @@ fun HistorialScreen(
             .fillMaxSize()
             .padding(16.dp),
 
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
 
         TextButton(onClick = onVolver) {
@@ -260,7 +262,7 @@ fun HistorialScreen(
         LazyColumn(
             modifier = Modifier.weight(1f),
 
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
 
             items(
@@ -294,58 +296,43 @@ fun TarjetaPagoHistorial(
         Locale.forLanguageTag("es-CL")
     )
 
-    Card(
-        modifier = Modifier.fillMaxWidth()
-    ) {
+    EstilosTarjeta.Tarjeta {
+        Text(
+            text = compromiso.empresa,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold
+        )
 
-        Column(
-            modifier = Modifier.padding(16.dp),
+        Text(
+            text = compromiso.concepto
+        )
 
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
+        Text(
+            text = "$ ${
+                formatoPesos.format(pago.montoPagado)
+            }",
 
-            Text(
-                text = compromiso.empresa,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
-            )
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold
+        )
 
-            Text(
-                text = compromiso.concepto
-            )
+        Text(
+            text = "Fecha: ${pago.fechaHora}"
+        )
 
-            Text(
-                text = "$ ${
-                    formatoPesos.format(pago.montoPagado)
-                }",
+        Text(
+            text = "Canal: ${pago.canal}"
+        )
 
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold
-            )
+        Text(
+            text = "Comprobante: ${pago.numeroComprobante}"
+        )
 
-            Text(
-                text = "Fecha: ${pago.fechaHora}"
-            )
+        Text(
+            text = "Estado: Pagado",
+            color = MaterialTheme.colorScheme.primary
+        )
 
-            Text(
-                text = "Canal: ${pago.canal}"
-            )
-
-            Text(
-                text = "Comprobante: ${pago.numeroComprobante}"
-            )
-
-            Text(
-                text = "Estado: Pagado",
-                color = MaterialTheme.colorScheme.primary
-            )
-
-            TextButton(
-                onClick = onVerComprobante
-            ) {
-
-                Text("Ver comprobante")
-            }
-        }
+        BotonTexto(text = "Ver comprobante", onClick = onVerComprobante)
     }
 }

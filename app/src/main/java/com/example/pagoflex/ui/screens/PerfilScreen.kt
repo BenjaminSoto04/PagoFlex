@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.core.content.FileProvider
 import android.graphics.BitmapFactory
@@ -25,6 +26,10 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.pagoflex.data.local.entity.UserEntity
+import com.example.pagoflex.ui.styles.BotonPrimario
+import com.example.pagoflex.ui.styles.BotonSecundario
+import com.example.pagoflex.ui.styles.EstiloCampo
+import com.example.pagoflex.ui.styles.EstilosTarjeta
 import com.example.pagoflex.viewmodel.AccountViewModel
 
 @Composable
@@ -37,6 +42,9 @@ fun PerfilScreen(
 ) {
     android.util.Log.d("PagoFlexNav", "PerfilScreen composing user=${user.id} route=...")
     val message by accountViewModel.message.collectAsStateWithLifecycle()
+    val errorGeneral by accountViewModel.error.collectAsStateWithLifecycle()
+    val errorNombre by accountViewModel.errorNombre.collectAsStateWithLifecycle()
+    val errorTelefono by accountViewModel.errorTelefono.collectAsStateWithLifecycle()
     val errorOld by accountViewModel.errorOld.collectAsStateWithLifecycle()
     val errorNew by accountViewModel.errorNew.collectAsStateWithLifecycle()
     val errorConfirm by accountViewModel.errorConfirm.collectAsStateWithLifecycle()
@@ -91,13 +99,21 @@ fun PerfilScreen(
             val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", photoFile)
             cameraLauncher.launch(uri)
         } else {
-            photoError = "Permiso de camara denegado"
+            photoError = "Permiso de cámara denegado"
             showPhotoDialog = false
         }
     }
 
     Scaffold(snackbarHost = { SnackbarHost(snackbarHostState) }) { padding ->
-    Column(Modifier.fillMaxSize().padding(padding).padding(24.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(
+        Modifier
+            .fillMaxSize()
+            .padding(padding)
+            .imePadding()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 16.dp, vertical = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
         TextButton(onClick = onVolver) { Text("← Volver") }
         Box(Modifier.size(120.dp).clip(androidx.compose.foundation.shape.CircleShape).align(Alignment.CenterHorizontally), contentAlignment = Alignment.Center) {
             if (photoFile.exists()) {
@@ -108,86 +124,108 @@ fun PerfilScreen(
                 Text(user.nombre.take(1).uppercase(), style = MaterialTheme.typography.headlineLarge)
             }
         }
-        Text("Mi perfil", style = MaterialTheme.typography.titleLarge)
+        EstilosTarjeta.Tarjeta(centrada = true) {
+            Text("Mi perfil", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
             Text("Nombre: ${user.nombre}", style = MaterialTheme.typography.bodyLarge)
             Text("Correo: ${user.email}", style = MaterialTheme.typography.bodyLarge)
             Text("Rol: ${user.rol}", style = MaterialTheme.typography.bodyLarge)
-            user.telefono?.let { Text("Telefono: $it", style = MaterialTheme.typography.bodyLarge) }
+            user.telefono?.let { Text("Teléfono: $it", style = MaterialTheme.typography.bodyLarge) }
             user.empresa?.let { Text("Empresa: $it", style = MaterialTheme.typography.bodyLarge) }
+        }
 
-        Button(onClick = { showPhotoDialog = true }, modifier = Modifier.fillMaxWidth()) { Text("Cambiar foto de perfil") }
+        BotonPrimario(text = "Cambiar foto de perfil", onClick = { showPhotoDialog = true })
         photoError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         HorizontalDivider()
-        Text("Editar perfil", style = MaterialTheme.typography.titleMedium)
-            OutlinedTextField(value = nombre, onValueChange = { nombre = it }, label = { Text("Nombre") }, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(value = telefono, onValueChange = { telefono = it }, label = { Text("Telefono") }, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(value = empresa, onValueChange = { empresa = it }, label = { Text("Empresa") }, modifier = Modifier.fillMaxWidth())
-            Button(onClick = { accountViewModel.updateProfile(user, nombre, telefono.ifBlank { null }, empresa.ifBlank { null }) }, modifier = Modifier.fillMaxWidth()) { Text("Guardar perfil") }
+        Text("Editar perfil", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        EstiloCampo.CampoTexto(
+            value = nombre,
+            onValueChange = { nombre = it; accountViewModel.limpiarErrorNombre(); accountViewModel.limpiarErrorGeneral() },
+            label = "Nombre completo",
+            isError = errorNombre != null
+        )
+        EstiloCampo.MensajeError(errorNombre)
+        EstiloCampo.CampoTexto(
+            value = telefono,
+            onValueChange = { telefono = it; accountViewModel.limpiarErrorTelefono(); accountViewModel.limpiarErrorGeneral() },
+            label = "Teléfono (opcional)",
+            isError = errorTelefono != null,
+            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                keyboardType = androidx.compose.ui.text.input.KeyboardType.Phone
+            )
+        )
+        EstiloCampo.MensajeError(errorTelefono)
+        EstiloCampo.CampoTexto(
+            value = empresa,
+            onValueChange = { empresa = it; accountViewModel.limpiarErrorGeneral() },
+            label = "Empresa (opcional)"
+        )
+        EstiloCampo.MensajeError(errorGeneral)
+        BotonPrimario(
+            text = "Guardar perfil",
+            onClick = {
+                accountViewModel.updateProfile(
+                    user,
+                    nombre,
+                    telefono.ifBlank { null },
+                    empresa.ifBlank { null }
+                )
+            }
+        )
 
-            HorizontalDivider()
-            Button(onClick = { showPasswordDialog = true }, modifier = Modifier.fillMaxWidth()) { Text("Cambiar contrasena") }
+        HorizontalDivider()
+        BotonSecundario(text = "Cambiar contraseña", onClick = { showPasswordDialog = true })
 
-            HorizontalDivider()
-            Button(onClick = { showLogoutDialog = true }, modifier = Modifier.fillMaxWidth()) { Text("Cerrar sesion") }
-        }
+        HorizontalDivider()
+        BotonSecundario(text = "Cerrar sesión", onClick = { showLogoutDialog = true })
+    }
     }
 
     if (showPasswordDialog) {
         AlertDialog(
             onDismissRequest = { showPasswordDialog = false },
-            title = { Text("Cambiar contrasena") },
+            modifier = Modifier.imePadding(),
+            title = { Text("Cambiar contraseña") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(
+                    EstiloCampo.CampoContrasena(
                         value = oldPass,
-                        onValueChange = { oldPass = it },
-                        label = { Text("Contrasena actual") },
-                        visualTransformation = if (showOld) VisualTransformation.None else PasswordVisualTransformation(),
-                        trailingIcon = {
-                            TextButton(onClick = { showOld = !showOld }) {
-                                Text(if (showOld) "Ocultar" else "Ver")
-                            }
-                        },
-                        isError = errorOld != null,
-                        modifier = Modifier.fillMaxWidth()
+                        onValueChange = { oldPass = it; accountViewModel.limpiarErroresContrasena() },
+                        label = "Contraseña actual",
+                        visible = showOld,
+                        onToggleVisible = { showOld = !showOld },
+                        isError = errorOld != null
                     )
-                    errorOld?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+                    EstiloCampo.MensajeError(errorOld)
 
-                    OutlinedTextField(
+                    EstiloCampo.CampoContrasena(
                         value = newPass,
-                        onValueChange = { newPass = it },
-                        label = { Text("Nueva contrasena") },
-                        visualTransformation = if (showNew) VisualTransformation.None else PasswordVisualTransformation(),
-                        trailingIcon = {
-                            TextButton(onClick = { showNew = !showNew }) {
-                                Text(if (showNew) "Ocultar" else "Ver")
-                            }
-                        },
-                        isError = errorNew != null,
-                        modifier = Modifier.fillMaxWidth()
+                        onValueChange = { newPass = it; accountViewModel.limpiarErroresContrasena() },
+                        label = "Nueva contraseña",
+                        visible = showNew,
+                        onToggleVisible = { showNew = !showNew },
+                        isError = errorNew != null
                     )
-                    errorNew?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+                    EstiloCampo.MensajeError(errorNew)
 
-                    OutlinedTextField(
+                    EstiloCampo.CampoContrasena(
                         value = confirm,
-                        onValueChange = { confirm = it },
-                        label = { Text("Confirmar nueva contrasena") },
-                        visualTransformation = if (showConfirm) VisualTransformation.None else PasswordVisualTransformation(),
-                        trailingIcon = {
-                            TextButton(onClick = { showConfirm = !showConfirm }) {
-                                Text(if (showConfirm) "Ocultar" else "Ver")
-                            }
-                        },
-                        isError = errorConfirm != null,
-                        modifier = Modifier.fillMaxWidth()
+                        onValueChange = { confirm = it; accountViewModel.limpiarErroresContrasena() },
+                        label = "Confirmar nueva contraseña",
+                        visible = showConfirm,
+                        onToggleVisible = { showConfirm = !showConfirm },
+                        isError = errorConfirm != null
                     )
-                    errorConfirm?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+                    EstiloCampo.MensajeError(errorConfirm)
+
+                    EstiloCampo.MensajeError(errorGeneral)
                 }
             },
             confirmButton = {
-                Button(onClick = { accountViewModel.changePassword(user.id, oldPass, newPass, confirm) }, colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)) {
-                    Text("Guardar cambios")
-                }
+                BotonPrimario(
+                    text = "Guardar cambios",
+                    onClick = { accountViewModel.changePassword(user.id, oldPass, newPass, confirm) },
+                    anchoCompleto = false
+                )
             },
             dismissButton = {
                 TextButton(onClick = { showPasswordDialog = false }) { Text("Cancelar") }
@@ -207,17 +245,21 @@ fun PerfilScreen(
         AlertDialog(
             onDismissRequest = { showPhotoDialog = false },
             title = { Text("Cambiar foto de perfil") },
-            text = { Text("Selecciona una opcion") },
+            text = { Text("Selecciona una opción") },
             confirmButton = {
-                Button(onClick = {
-                    showPhotoDialog = false
-                    if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
-                        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", photoFile)
-                        cameraLauncher.launch(uri)
-                    } else {
-                        cameraPermissionLauncher.launch(android.Manifest.permission.CAMERA)
-                    }
-                }) { Text("Tomar foto") }
+                BotonPrimario(
+                    text = "Tomar foto",
+                    onClick = {
+                        showPhotoDialog = false
+                        if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+                            val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", photoFile)
+                            cameraLauncher.launch(uri)
+                        } else {
+                            cameraPermissionLauncher.launch(android.Manifest.permission.CAMERA)
+                        }
+                    },
+                    anchoCompleto = false
+                )
             },
             dismissButton = {
                 TextButton(onClick = { showPhotoDialog = false; galleryLauncher.launch("image/*") }) { Text("Elegir de galeria") }
@@ -228,12 +270,18 @@ fun PerfilScreen(
     if (showLogoutDialog) {
         AlertDialog(
             onDismissRequest = { showLogoutDialog = false },
-            title = { Text("Cerrar sesion") },
-            text = { Text("¿Desea cerrar la sesion actual?") },
+            title = { Text("Cerrar sesión") },
+            text = { Text("¿Deseas cerrar la sesión actual?") },
             confirmButton = {
-                Button(onClick = { android.util.Log.d("PagoFlexLogout", "logout confirm"); showLogoutDialog = false; onCerrarSesion() }, colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)) {
-                    Text("Cerrar sesion")
-                }
+                BotonPrimario(
+                    text = "Cerrar sesión",
+                    onClick = {
+                        android.util.Log.d("PagoFlexLogout", "logout confirm")
+                        showLogoutDialog = false
+                        onCerrarSesion()
+                    },
+                    anchoCompleto = false
+                )
             },
             dismissButton = {
                 TextButton(onClick = { showLogoutDialog = false }) { Text("Cancelar") }
