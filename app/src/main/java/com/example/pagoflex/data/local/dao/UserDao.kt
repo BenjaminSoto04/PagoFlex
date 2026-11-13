@@ -19,7 +19,10 @@ interface UserDao {
     @Query("SELECT * FROM usuarios WHERE id = :id")
     suspend fun getById(id: Long): UserEntity?
 
-    @Query("SELECT * FROM usuarios WHERE email = :email LIMIT 1")
+    @Query(
+        "SELECT * FROM usuarios WHERE LOWER(TRIM(email)) = LOWER(TRIM(:email)) " +
+                "OR LOWER(TRIM(codigo)) = LOWER(TRIM(:email)) LIMIT 1"
+    )
     suspend fun getByEmail(email: String): UserEntity?
 
     @Insert(onConflict = OnConflictStrategy.ABORT)
@@ -33,4 +36,12 @@ interface UserDao {
 
     @Query("UPDATE usuarios SET fotoUri = :fotoUri WHERE id = :id")
     suspend fun updateFoto(id: Long, fotoUri: String?)
+
+    /** Ids de los usuarios mock creados por versiones anteriores de la app. */
+    @Query("SELECT id FROM usuarios WHERE codigo LIKE 'DEMO-%'")
+    suspend fun getIdsUsuariosMock(): List<Long>
+
+    /** Elimina los usuarios mock creados por versiones anteriores de la app. */
+    @Query("DELETE FROM usuarios WHERE codigo LIKE 'DEMO-%'")
+    suspend fun deleteUsuariosMock(): Int
 }

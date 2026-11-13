@@ -28,6 +28,9 @@ interface CompromisoDao {
     @Query("UPDATE compromisos SET estado = :estado WHERE id = :id")
     suspend fun updateEstado(id: Long, estado: String)
 
+    @Query("UPDATE compromisos SET estado = :estado, motivoAnulacion = :motivo WHERE id = :id")
+    suspend fun updateEstadoConMotivo(id: Long, estado: String, motivo: String?)
+
     @Query("DELETE FROM compromisos WHERE id = :id")
     suspend fun deleteById(id: Long)
 }
