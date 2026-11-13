@@ -12,5 +12,6 @@ data class Compromiso(
     val monto: Int,
     val fechaVencimiento: String,
     val estado: EstadoCompromiso,
-    val recargoAplicado: Int = 0
+    val recargoAplicado: Int = 0,
+    val motivoAnulacion: String? = null
 )

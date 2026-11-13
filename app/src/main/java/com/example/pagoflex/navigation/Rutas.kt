@@ -1,5 +1,7 @@
 package com.example.pagoflex.navigation
 
+import android.net.Uri
+
 sealed class Ruta(val ruta: String) {
 
     data object Login : Ruta("login")
@@ -7,6 +9,10 @@ sealed class Ruta(val ruta: String) {
     data object Register : Ruta("register")
 
     data object Recuperar : Ruta("recuperar")
+
+    data object RestablecerPassword : Ruta("restablecer_password/{email}") {
+        fun crear(email: String): String = "restablecer_password/${Uri.encode(email)}"
+    }
 
     data object Perfil : Ruta("perfil")
 
