@@ -14,7 +14,7 @@ interface CompromisoRepository {
     suspend fun insert(c: Compromiso)
     suspend fun update(c: Compromiso)
     suspend fun updateEstado(id: Long, estado: EstadoCompromiso)
-    suspend fun anular(id: Long)
+    suspend fun anular(id: Long, motivo: String? = null)
     suspend fun delete(id: Long)
 }
 
@@ -31,7 +31,8 @@ class CompromisoRepositoryImpl(private val db: AppDatabase) : CompromisoReposito
         monto = e.monto,
         fechaVencimiento = e.fechaVencimiento,
         estado = EstadoCompromiso.valueOf(e.estado),
-        recargoAplicado = e.recargoAplicado
+        recargoAplicado = e.recargoAplicado,
+        motivoAnulacion = e.motivoAnulacion
     )
     private fun toEntity(c: Compromiso) = CompromisoEntity(
         id = c.id,
@@ -45,7 +46,8 @@ class CompromisoRepositoryImpl(private val db: AppDatabase) : CompromisoReposito
         monto = c.monto,
         fechaVencimiento = c.fechaVencimiento,
         estado = c.estado.name,
-        recargoAplicado = c.recargoAplicado
+        recargoAplicado = c.recargoAplicado,
+        motivoAnulacion = c.motivoAnulacion
     )
 
     override fun getAll(): Flow<List<Compromiso>> = db.compromisoDao().getAll().map { it.map(::toModel) }
@@ -54,6 +56,7 @@ class CompromisoRepositoryImpl(private val db: AppDatabase) : CompromisoReposito
     override suspend fun insert(c: Compromiso) = db.compromisoDao().insert(toEntity(c))
     override suspend fun update(c: Compromiso) = db.compromisoDao().update(toEntity(c))
     override suspend fun updateEstado(id: Long, estado: EstadoCompromiso) = db.compromisoDao().updateEstado(id, estado.name)
-    override suspend fun anular(id: Long) = db.compromisoDao().updateEstado(id, EstadoCompromiso.ANULADO.name)
+    override suspend fun anular(id: Long, motivo: String?) =
+        db.compromisoDao().updateEstadoConMotivo(id, EstadoCompromiso.ANULADO.name, motivo?.trim()?.takeIf { it.isNotEmpty() })
     override suspend fun delete(id: Long) = db.compromisoDao().deleteById(id)
 }
