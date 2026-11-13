@@ -29,10 +29,10 @@ class AgenteViewModel(application: Application) : AndroidViewModel(application) 
     fun consultar(texto: String) {
         val t = texto.lowercase()
         _mensaje.value = when {
-            "pago" in t -> "Puedes pagar tus compromisos desde la seccion Mis compromisos."
+            "pago" in t -> "Puedes pagar tus compromisos desde la sección Mis compromisos."
             "venc" in t -> "Revisa tus compromisos vencidos en el inicio."
-            "comprobante" in t -> "Los comprobantes estan en el historial de pagos."
-            else -> "No entendi tu consulta. Intenta con pago, vencimiento o comprobante."
+            "comprobante" in t -> "Los comprobantes están en el historial de pagos."
+            else -> "No entendí tu consulta. Intenta con pago, vencimiento o comprobante."
         }
     }
 }

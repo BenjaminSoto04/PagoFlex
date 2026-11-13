@@ -6,7 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.pagoflex.data.local.entity.UserEntity
 import com.example.pagoflex.data.repository.RepositoryProvider
 import com.example.pagoflex.data.repository.UserRepository
-import com.example.pagoflex.security.PasswordHasher
+import com.example.pagoflex.ui.styles.Validaciones
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -18,8 +18,18 @@ class AccountViewModel(application: Application) : AndroidViewModel(application)
     private val _message = MutableStateFlow<String?>(null)
     val message: StateFlow<String?> = _message.asStateFlow()
 
+    /** Error general para fallas que no corresponden a un campo puntual. */
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
+
+    private val _errorNombre = MutableStateFlow<String?>(null)
+    val errorNombre: StateFlow<String?> = _errorNombre.asStateFlow()
+
+    private val _errorTelefono = MutableStateFlow<String?>(null)
+    val errorTelefono: StateFlow<String?> = _errorTelefono.asStateFlow()
+
+    private val _errorEmail = MutableStateFlow<String?>(null)
+    val errorEmail: StateFlow<String?> = _errorEmail.asStateFlow()
 
     private val _errorOld = MutableStateFlow<String?>(null)
     val errorOld: StateFlow<String?> = _errorOld.asStateFlow()
@@ -31,62 +41,73 @@ class AccountViewModel(application: Application) : AndroidViewModel(application)
     val errorConfirm: StateFlow<String?> = _errorConfirm.asStateFlow()
 
     fun updateProfile(user: UserEntity, nombre: String, telefono: String?, empresa: String?) {
-        if (nombre.isBlank()) { _error.value = "Nombre obligatorio"; return }
+        _errorNombre.value = Validaciones.nombre(nombre)
+        _errorTelefono.value = Validaciones.telefono(telefono.orEmpty())
+        _error.value = null
+        if (_errorNombre.value != null || _errorTelefono.value != null) return
+
         viewModelScope.launch {
-            repo.updateProfile(user.copy(nombre = nombre.trim(), telefono = telefono, empresa = empresa))
-            _message.value = "Perfil actualizado"
+            runCatching {
+                repo.updateProfile(user.copy(nombre = nombre.trim(), telefono = telefono, empresa = empresa))
+            }.onSuccess {
+                _message.value = "Perfil actualizado"
+            }.onFailure {
+                _error.value = "No pudimos guardar los cambios. Inténtalo nuevamente."
+            }
         }
     }
 
     fun changePassword(userId: Long, old: String, newPass: String, confirm: String) {
-        _errorOld.value = null
-        _errorNew.value = null
-        _errorConfirm.value = null
+        limpiarErroresContrasena()
         _error.value = null
 
-        var hasError = false
-        if (old.isBlank()) {
-            _errorOld.value = "La contrasena actual es obligatoria"
-            hasError = true
+        _errorOld.value = if (old.isEmpty()) "Ingresa tu contraseña actual" else null
+        _errorNew.value = Validaciones.contrasena(newPass)
+        if (_errorNew.value == null && newPass == old) {
+            _errorNew.value = "La nueva contraseña debe ser distinta de la actual"
         }
-        if (newPass.isBlank()) {
-            _errorNew.value = "La nueva contrasena es obligatoria"
-            hasError = true
-        } else {
-            val errs = PasswordHasher.validate(newPass)
-            if (errs.isNotEmpty()) {
-                _errorNew.value = errs.first()
-                hasError = true
-            } else if (newPass == old) {
-                _errorNew.value = "La nueva contrasena debe ser diferente de la actual"
-                hasError = true
-            }
-        }
-        if (confirm.isBlank()) {
-            _errorConfirm.value = "La confirmacion es obligatoria"
-            hasError = true
-        } else if (newPass != confirm) {
-            _errorConfirm.value = "Las contrasenas no coinciden"
-            hasError = true
-        }
-        if (hasError) return
+        _errorConfirm.value = Validaciones.confirmacion(newPass, confirm)
+
+        val hayErrores = listOf(_errorOld.value, _errorNew.value, _errorConfirm.value).any { it != null }
+        if (hayErrores) return
 
         viewModelScope.launch {
             repo.changePassword(userId, old, newPass).onSuccess {
-                _message.value = "Contrasena actualizada correctamente"
+                _message.value = "Contraseña actualizada correctamente"
             }.onFailure { e ->
-                _errorOld.value = e.message ?: "Contrasena actual incorrecta"
+                val mensaje = e.message.orEmpty()
+                if (mensaje.contains("contraseña", ignoreCase = true) ||
+                    mensaje.contains("usuario", ignoreCase = true)
+                ) {
+                    _errorOld.value = "La contraseña actual es incorrecta"
+                } else {
+                    _error.value = mensaje.ifBlank { "No pudimos cambiar la contraseña. Inténtalo nuevamente." }
+                }
             }
         }
     }
 
     fun recoverPassword(email: String, newPass: String, confirm: String) {
-        val errs = PasswordHasher.validate(newPass)
-        if (errs.isNotEmpty()) { _error.value = errs.first(); return }
-        if (newPass != confirm) { _error.value = "Las contrasenas no coinciden"; return }
+        _errorEmail.value = Validaciones.correo(email)
+        _errorNew.value = Validaciones.contrasena(newPass)
+        _errorConfirm.value = Validaciones.confirmacion(newPass, confirm)
+        _error.value = null
+        _message.value = null
+
+        val hayErrores = listOf(_errorEmail.value, _errorNew.value, _errorConfirm.value).any { it != null }
+        if (hayErrores) return
+
         viewModelScope.launch {
-            repo.resetPassword(email.trim(), newPass).onSuccess { _message.value = "Contrasena restablecida" }
-                .onFailure { _error.value = it.message }
+            repo.resetPassword(email.trim(), newPass).onSuccess {
+                _message.value = "Contraseña restablecida correctamente"
+            }.onFailure { e ->
+                val mensaje = e.message.orEmpty()
+                if (mensaje.contains("correo", ignoreCase = true)) {
+                    _errorEmail.value = "No existe una cuenta registrada con este correo"
+                } else {
+                    _error.value = mensaje.ifBlank { "No pudimos restablecer la contraseña. Inténtalo nuevamente." }
+                }
+            }
         }
     }
 
@@ -97,5 +118,26 @@ class AccountViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    fun clear() { _message.value = null; _error.value = null; _errorOld.value = null; _errorNew.value = null; _errorConfirm.value = null }
+    fun limpiarErrorNombre() { _errorNombre.value = null }
+
+    fun limpiarErrorTelefono() { _errorTelefono.value = null }
+
+    fun limpiarErrorEmail() { _errorEmail.value = null }
+
+    fun limpiarErrorGeneral() { _error.value = null }
+
+    fun limpiarErroresContrasena() {
+        _errorOld.value = null
+        _errorNew.value = null
+        _errorConfirm.value = null
+    }
+
+    fun clear() {
+        _message.value = null
+        _error.value = null
+        _errorNombre.value = null
+        _errorTelefono.value = null
+        _errorEmail.value = null
+        limpiarErroresContrasena()
+    }
 }

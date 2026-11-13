@@ -114,9 +114,9 @@ class PagosViewModel(application: Application) : AndroidViewModel(application) {
     fun validarPago(compromiso: Compromiso): String? {
         val actual = obtenerCompromiso(compromiso.id) ?: return "Compromiso no encontrado"
         when (actual.estado) {
-            EstadoCompromiso.PAGADO -> return "Este compromiso ya esta pagado"
-            EstadoCompromiso.ANULADO -> return "Este compromiso esta anulado"
-            EstadoCompromiso.EN_REVISION -> return "Este compromiso esta en revision"
+            EstadoCompromiso.PAGADO -> return "Este compromiso ya está pagado"
+            EstadoCompromiso.ANULADO -> return "Este compromiso está anulado"
+            EstadoCompromiso.EN_REVISION -> return "Este compromiso está en revisión"
             EstadoCompromiso.PENDIENTE, EstadoCompromiso.VENCIDO -> Unit
         }
         val pagoExistente = _pagos.value.any { it.idCompromiso == actual.id }
