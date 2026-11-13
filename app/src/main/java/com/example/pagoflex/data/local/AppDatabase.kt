@@ -8,25 +8,26 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import com.example.pagoflex.data.local.dao.CompromisoDao
 import com.example.pagoflex.data.local.dao.ComprobanteDao
 import com.example.pagoflex.data.local.dao.ConversacionDao
-import com.example.pagoflex.data.local.dao.MensajeDao
 import com.example.pagoflex.data.local.dao.EmpresaDao
+import com.example.pagoflex.data.local.dao.MensajeDao
 import com.example.pagoflex.data.local.dao.PagoDao
 import com.example.pagoflex.data.local.dao.ReporteDao
 import com.example.pagoflex.data.local.dao.UserDao
 import com.example.pagoflex.data.local.entity.CompromisoEntity
 import com.example.pagoflex.data.local.entity.ComprobanteEntity
 import com.example.pagoflex.data.local.entity.ConversacionEntity
-import com.example.pagoflex.data.local.entity.MensajeEntity
 import com.example.pagoflex.data.local.entity.EmpresaEntity
+import com.example.pagoflex.data.local.entity.MensajeEntity
 import com.example.pagoflex.data.local.entity.PagoEntity
+import com.example.pagoflex.data.local.entity.PreguntasSeguridad
 import com.example.pagoflex.data.local.entity.ReporteEntity
 import com.example.pagoflex.data.local.entity.UserEntity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kotlinx.coroutines.flow.firstOrNull
 
 @Database(
     entities = [
@@ -39,7 +40,7 @@ import kotlinx.coroutines.flow.firstOrNull
         ConversacionEntity::class,
         MensajeEntity::class
     ],
-    version = 15,
+    version = 17,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -62,6 +63,23 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_15_16 = object : androidx.room.migration.Migration(15, 16) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE compromisos ADD COLUMN motivoAnulacion TEXT")
+            }
+        }
+
+        val MIGRATION_16_17 = object : androidx.room.migration.Migration(16, 17) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE usuarios ADD COLUMN preguntaSeguridad TEXT NOT NULL DEFAULT '${PreguntasSeguridad.PREGUNTA_DEFAULT}'"
+                )
+                db.execSQL(
+                    "ALTER TABLE usuarios ADD COLUMN respuestaSeguridad TEXT NOT NULL DEFAULT '${PreguntasSeguridad.RESPUESTA_DEFAULT}'"
+                )
+            }
+        }
+
         private val seedLock = Mutex()
         @Volatile private var seeded = false
         @Volatile private var demoSeeded = false
@@ -72,7 +90,9 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "pagoflex.db"
-                )                    .addMigrations(MIGRATION_14_15).addCallback(object : Callback() {
+                )
+                    .addMigrations(MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17)
+                    .addCallback(object : Callback() {
                         override fun onCreate(db: SupportSQLiteDatabase) {
                             super.onCreate(db)
                             CoroutineScope(Dispatchers.IO).launch {
@@ -84,7 +104,12 @@ abstract class AppDatabase : RoomDatabase() {
                 INSTANCE = newInstance
                 newInstance
             }
-            CoroutineScope(Dispatchers.IO).launch { seed(instance); seedDemo(instance); cleanupDemoConversations(instance); seedAgentDemo(instance) }
+            CoroutineScope(Dispatchers.IO).launch {
+                seed(instance)
+                limpiarUsuariosMock(instance)
+                seedDemo(instance)
+                seedConversacionesAtencion(instance)
+            }
             return instance
         }
 
@@ -105,6 +130,8 @@ abstract class AppDatabase : RoomDatabase() {
                     val defaultPassword = "PagoFlex123!"
                     val salt = hasher.generateSalt()
                     val hash = hasher.hash(defaultPassword, salt)
+                    val pregDefault = PreguntasSeguridad.PREGUNTA_DEFAULT
+                    val respDefault = PreguntasSeguridad.RESPUESTA_DEFAULT
 
                     val empresas = listOf(
                         EmpresaEntity(1001, "EC-01", "Inmobiliaria Altos del Maipo SpA", "Altos del Maipo", "76.845.213-K", "Inmobiliaria", "atencion@altosmaipo.ejemplo", "+56 2 0000 0201", 8500),
@@ -119,37 +146,37 @@ abstract class AppDatabase : RoomDatabase() {
                     empresas.forEach { e.insert(it) }
 
                     val users = listOf(
-                        UserEntity(1, "UF-01", "Camila Andrea Rojas Peña", "15.834.207-3", "crojas@correo.ejemplo", hash, salt, "USUARIO", "+56 9 0000 0101", "Maipú", null, null, null, true, "14-03-2023", 3, true),
-                        UserEntity(2, "UF-02", "Luis Alberto Muñoz Tapia", "12.476.318-5", "lmunoz@correo.ejemplo", hash, salt, "USUARIO", "+56 9 0000 0102", "Puente Alto", null, null, null, true, "02-11-2023", 1, true),
-                        UserEntity(3, "UF-03", "Rosa Elena Contreras Díaz", "6.893.541-5", "rcontreras@correo.ejemplo", hash, salt, "USUARIO", "+56 9 0000 0103", "San Miguel", null, null, null, true, "20-06-2024", 5, true),
-                        UserEntity(4, "UF-04", "Matías Ignacio Soto Vergara", "21.045.873-5", "msoto@correo.ejemplo", hash, salt, "USUARIO", "+56 9 0000 0104", "La Florida", null, null, null, true, "07-03-2025", null, false),
-                        UserEntity(5, "UF-05", "Fernanda Paz Godoy Lagos", "17.562.904-1", "fgodoy@correo.ejemplo", hash, salt, "USUARIO", "+56 9 0000 0105", "Ñuñoa", null, null, null, true, "15-01-2024", 3, true),
-                        UserEntity(6, "UF-06", "Héctor Manuel Pizarro Campos", "10.318.265-4", "hpizarro@correo.ejemplo", hash, salt, "USUARIO", "+56 9 0000 0106", "Quilicura", null, null, null, true, "28-08-2023", 3, true),
-                        UserEntity(7, "UF-07", "Javiera Constanza Reyes Molina", "19.287.430-0", "jreyes@correo.ejemplo", hash, salt, "USUARIO", "+56 9 0000 0107", "San Bernardo", null, null, null, true, "03-05-2025", 1, true),
-                        UserEntity(8, "UF-08", "Benjamín Esteban Araya Fuentes", "18.704.396-4", "baraya@correo.ejemplo", hash, salt, "USUARIO", "+56 9 0000 0108", "Estación Central", null, null, null, true, "11-09-2026", 3, true),
-                        UserEntity(900, "TEST-USUARIO", "Usuario Prueba", null, "usuario.prueba@pagoflex.cl", hash, salt, "USUARIO", null, null, null, null, null, true, null, 3, true),
-                        UserEntity(901, "TEST-EJECUTIVO", "Ejecutivo Prueba", null, "ejecutivo.prueba@pagoflex.cl", hash, salt, "EJECUTIVO", null, null, 1001, null, "Ejecutivo de cobranza", true, null, null, true),
-                        UserEntity(902, "TEST-AGENTE", "Agente Prueba", null, "agente.prueba@pagoflex.cl", hash, salt, "AGENTE", null, null, null, "Soporte", null, true, null, null, true)
+                        UserEntity(1, "UF-01", "Camila Andrea Rojas Peña", "15.834.207-3", "crojas@correo.ejemplo", hash, salt, "USUARIO", "+56 9 0000 0101", "Maipú", null, null, null, true, "14-03-2023", 3, true, null, null, pregDefault, respDefault),
+                        UserEntity(2, "UF-02", "Luis Alberto Muñoz Tapia", "12.476.318-5", "lmunoz@correo.ejemplo", hash, salt, "USUARIO", "+56 9 0000 0102", "Puente Alto", null, null, null, true, "02-11-2023", 1, true, null, null, pregDefault, respDefault),
+                        UserEntity(3, "UF-03", "Rosa Elena Contreras Díaz", "6.893.541-5", "rcontreras@correo.ejemplo", hash, salt, "USUARIO", "+56 9 0000 0103", "San Miguel", null, null, null, true, "20-06-2024", 5, true, null, null, pregDefault, respDefault),
+                        UserEntity(4, "UF-04", "Matías Ignacio Soto Vergara", "21.045.873-5", "msoto@correo.ejemplo", hash, salt, "USUARIO", "+56 9 0000 0104", "La Florida", null, null, null, true, "07-03-2025", null, false, null, null, pregDefault, respDefault),
+                        UserEntity(5, "UF-05", "Fernanda Paz Godoy Lagos", "17.562.904-1", "fgodoy@correo.ejemplo", hash, salt, "USUARIO", "+56 9 0000 0105", "Ñuñoa", null, null, null, true, "15-01-2024", 3, true, null, null, pregDefault, respDefault),
+                        UserEntity(6, "UF-06", "Héctor Manuel Pizarro Campos", "10.318.265-4", "hpizarro@correo.ejemplo", hash, salt, "USUARIO", "+56 9 0000 0106", "Quilicura", null, null, null, true, "28-08-2023", 3, true, null, null, pregDefault, respDefault),
+                        UserEntity(7, "UF-07", "Javiera Constanza Reyes Molina", "19.287.430-0", "jreyes@correo.ejemplo", hash, salt, "USUARIO", "+56 9 0000 0107", "San Bernardo", null, null, null, true, "03-05-2025", 1, true, null, null, pregDefault, respDefault),
+                        UserEntity(8, "UF-08", "Benjamín Esteban Araya Fuentes", "18.704.396-4", "baraya@correo.ejemplo", hash, salt, "USUARIO", "+56 9 0000 0108", "Estación Central", null, null, null, true, "11-09-2026", 3, true, null, null, pregDefault, respDefault),
+                        UserEntity(900, "TEST-USUARIO", "Usuario Prueba", null, "usuario.prueba@pagoflex.cl", hash, salt, "USUARIO", null, null, null, null, null, true, null, 3, true, null, null, pregDefault, respDefault),
+                        UserEntity(901, "TEST-EJECUTIVO", "Ejecutivo Prueba", null, "ejecutivo.prueba@pagoflex.cl", hash, salt, "EJECUTIVO", null, null, 1001, null, "Ejecutivo de cobranza", true, null, null, true, null, null, pregDefault, respDefault),
+                        UserEntity(902, "TEST-AGENTE", "Agente Prueba", null, "agente.prueba@pagoflex.cl", hash, salt, "AGENTE", null, null, null, "Soporte", null, true, null, null, true, null, null, pregDefault, respDefault)
                     )
                     users.forEach { u.insert(it) }
 
                     val agentes = listOf(
-                        UserEntity(101, "AG-01", "Andrés Felipe Lagos Meza", "16.248.317-K", "alagos@pagoflex.ejemplo", hash, salt, "AGENTE", null, null, null, "Soporte", null, true, null, null, true),
-                        UserEntity(102, "AG-02", "Daniela Sofía Ortiz Bravo", "18.352.091-1", "dortiz@pagoflex.ejemplo", hash, salt, "AGENTE", null, null, null, "Soporte", null, true, null, null, true),
-                        UserEntity(103, "AG-03", "Ricardo José Salinas Cáceres", "13.907.264-2", "rsalinas@pagoflex.ejemplo", hash, salt, "AGENTE", null, null, null, "Soporte", null, false, null, null, true),
-                        UserEntity(104, "AG-04", "Valentina Ignacia Paredes Silva", "17.781.435-0", "vparedes@pagoflex.ejemplo", hash, salt, "AGENTE", null, null, null, "Comercial", null, true, null, null, true),
-                        UserEntity(105, "AG-05", "Tomás Alejandro Vidal Rojas", "19.564.028-9", "tvidal@pagoflex.ejemplo", hash, salt, "AGENTE", null, null, null, "Comercial", null, true, null, null, true)
+                        UserEntity(101, "AG-01", "Andrés Felipe Lagos Meza", "16.248.317-K", "alagos@pagoflex.ejemplo", hash, salt, "AGENTE", null, null, null, "Soporte", null, true, null, null, true, null, null, pregDefault, respDefault),
+                        UserEntity(102, "AG-02", "Daniela Sofía Ortiz Bravo", "18.352.091-1", "dortiz@pagoflex.ejemplo", hash, salt, "AGENTE", null, null, null, "Soporte", null, true, null, null, true, null, null, pregDefault, respDefault),
+                        UserEntity(103, "AG-03", "Ricardo José Salinas Cáceres", "13.907.264-2", "rsalinas@pagoflex.ejemplo", hash, salt, "AGENTE", null, null, null, "Soporte", null, false, null, null, true, null, null, pregDefault, respDefault),
+                        UserEntity(104, "AG-04", "Valentina Ignacia Paredes Silva", "17.781.435-0", "vparedes@pagoflex.ejemplo", hash, salt, "AGENTE", null, null, null, "Comercial", null, true, null, null, true, null, null, pregDefault, respDefault),
+                        UserEntity(105, "AG-05", "Tomás Alejandro Vidal Rojas", "19.564.028-9", "tvidal@pagoflex.ejemplo", hash, salt, "AGENTE", null, null, null, "Comercial", null, true, null, null, true, null, null, pregDefault, respDefault)
                     )
                     agentes.forEach { u.insert(it) }
 
                     val ejecutivos = listOf(
-                        UserEntity(201, "EJ-01", "Paula Andrea Saavedra Núñez", "14.629.853-2", "psaavedra@altosmaipo.ejemplo", hash, salt, "EJECUTIVO", "+56 9 0000 0401", null, 1001, null, "Ejecutiva de cobranza", true, null, null, true),
-                        UserEntity(202, "EJ-02", "Marco Antonio Fuentes Riquelme", "11.853.720-3", "mfuentes@bosquenativo.ejemplo", hash, salt, "EJECUTIVO", "+56 9 0000 0402", null, 1002, null, "Encargado de finanzas", true, null, null, true),
-                        UserEntity(203, "EJ-03", "Claudia Beatriz Henríquez Soto", "15.370.946-7", "chenriquez@creditoandino.ejemplo", hash, salt, "EJECUTIVO", "+56 9 0000 0403", null, 1003, null, "Jefa de cobranza", true, null, null, true),
-                        UserEntity(204, "EJ-04", "Felipe Ignacio Morales Tapia", "17.095.482-3", "fmorales@creditoandino.ejemplo", hash, salt, "EJECUTIVO", "+56 9 0000 0404", null, 1003, null, "Ejecutivo de cobranza", true, null, null, true),
-                        UserEntity(205, "EJ-05", "Gloria Inés Carrasco Vega", "9.846.217-1", "gcarrasco@loshalcones.ejemplo", hash, salt, "EJECUTIVO", "+56 9 0000 0405", null, 1006, null, "Tesorera", true, null, null, true),
-                        UserEntity(206, "EJ-06", "Sebastián Andrés Núñez Olivares", "18.930.571-0", "snunez@itcordillera.ejemplo", hash, salt, "EJECUTIVO", "+56 9 0000 0406", null, 1007, null, "Analista de finanzas", true, null, null, true),
-                        UserEntity(207, "EJ-07", "Mónica Patricia Leiva Castro", "12.584.396-4", "mleiva@plazaoriente.ejemplo", hash, salt, "EJECUTIVO", "+56 9 0000 0407", null, 1008, null, "Administradora de cobranza", true, null, null, true)
+                        UserEntity(201, "EJ-01", "Paula Andrea Saavedra Núñez", "14.629.853-2", "psaavedra@altosmaipo.ejemplo", hash, salt, "EJECUTIVO", "+56 9 0000 0401", null, 1001, null, "Ejecutiva de cobranza", true, null, null, true, null, null, pregDefault, respDefault),
+                        UserEntity(202, "EJ-02", "Marco Antonio Fuentes Riquelme", "11.853.720-3", "mfuentes@bosquenativo.ejemplo", hash, salt, "EJECUTIVO", "+56 9 0000 0402", null, 1002, null, "Encargado de finanzas", true, null, null, true, null, null, pregDefault, respDefault),
+                        UserEntity(203, "EJ-03", "Claudia Beatriz Henríquez Soto", "15.370.946-7", "chenriquez@creditoandino.ejemplo", hash, salt, "EJECUTIVO", "+56 9 0000 0403", null, 1003, null, "Jefa de cobranza", true, null, null, true, null, null, pregDefault, respDefault),
+                        UserEntity(204, "EJ-04", "Felipe Ignacio Morales Tapia", "17.095.482-3", "fmorales@creditoandino.ejemplo", hash, salt, "EJECUTIVO", "+56 9 0000 0404", null, 1003, null, "Ejecutivo de cobranza", true, null, null, true, null, null, pregDefault, respDefault),
+                        UserEntity(205, "EJ-05", "Gloria Inés Carrasco Vega", "9.846.217-1", "gcarrasco@loshalcones.ejemplo", hash, salt, "EJECUTIVO", "+56 9 0000 0405", null, 1006, null, "Tesorera", true, null, null, true, null, null, pregDefault, respDefault),
+                        UserEntity(206, "EJ-06", "Sebastián Andrés Núñez Olivares", "18.930.571-0", "snunez@itcordillera.ejemplo", hash, salt, "EJECUTIVO", "+56 9 0000 0406", null, 1007, null, "Analista de finanzas", true, null, null, true, null, null, pregDefault, respDefault),
+                        UserEntity(207, "EJ-07", "Mónica Patricia Leiva Castro", "12.584.396-4", "mleiva@plazaoriente.ejemplo", hash, salt, "EJECUTIVO", "+56 9 0000 0407", null, 1008, null, "Administradora de cobranza", true, null, null, true, null, null, pregDefault, respDefault)
                     )
                     ejecutivos.forEach { u.insert(it) }
 
@@ -202,8 +229,6 @@ abstract class AppDatabase : RoomDatabase() {
             val userId = 900L
             val c = db.compromisoDao()
             val p = db.pagoDao()
-            val convDao = db.conversacionDao()
-            val msgDao = db.mensajeDao()
             try {
                 if (demoSeeded) return
                 val existing = c.getByUsuario(userId).firstOrNull()
@@ -214,25 +239,22 @@ abstract class AppDatabase : RoomDatabase() {
                 } else {
                     val fmt = java.time.format.DateTimeFormatter.ofPattern("dd-MM-uuuu")
                     val now = java.time.LocalDate.now()
-                    val empresas = listOf(1003L, 1003L, 1008L, 1006L, 1003L)
                     android.util.Log.d("PagoFlexSeed", "inserting compromisos")
                     val compromisos = listOf(
-                        Triple("CP-DEMO-001", "Compromiso pr?ximo a vencer 3 d?as", 3),
-                        Triple("CP-DEMO-002", "Compromiso pr?ximo a vencer 7 d?as", 7),
-                        Triple("CP-DEMO-003", "Compromiso pendiente 15 d?as", 15),
-                        Triple("CP-DEMO-004", "Compromiso vencido hace 2 d?as", -2)
+                        Triple("CP-DEMO-001", "Compromiso próximo a vencer en 3 días", 3),
+                        Triple("CP-DEMO-002", "Compromiso próximo a vencer en 7 días", 7),
+                        Triple("CP-DEMO-003", "Compromiso pendiente a 15 días", 15),
+                        Triple("CP-DEMO-004", "Compromiso vencido hace 2 días", -2)
                     )
                     compromisos.forEachIndexed { idx, (folio, concepto, dias) ->
                         val fecha = now.plusDays(dias.toLong()).format(fmt)
                         val estado = if (dias < 0) "VENCIDO" else "PENDIENTE"
                         val recargo = if (dias < 0) 12000 else 0
-                        c.insert(CompromisoEntity(9000L + idx, folio, userId, 1003L, "Cr?dito Andino", concepto, 1, 12, 50000 + idx * 10000, fecha, estado, recargo))
+                        c.insert(CompromisoEntity(9000L + idx, folio, userId, 1003L, "Crédito Andino", concepto, 1, 12, 50000 + idx * 10000, fecha, estado, recargo))
                     }
-                    c.insert(CompromisoEntity(9004L, "CP-DEMO-005", userId, 1003L, "Cr?dito Andino", "Compromiso pagado", 1, 12, 30000, now.minusDays(10).format(fmt), "PAGADO", 0))
+                    c.insert(CompromisoEntity(9004L, "CP-DEMO-005", userId, 1003L, "Crédito Andino", "Compromiso pagado", 1, 12, 30000, now.minusDays(10).format(fmt), "PAGADO", 0))
                     p.insert(PagoEntity(9001L, "CPR-DEMO-001", 9004L, now.minusDays(10).format(fmt) + " 10:00", 30000, "App", "Pago simulado"))
                 }
-                android.util.Log.d("PagoFlexSeed", "checking conv")
-                // No se crean mensajes automaticos. La conversacion se crea cuando el usuario envia su primer mensaje.
                 demoSeeded = true
                 android.util.Log.d("PagoFlexSeed", "demo seed done")
             } catch (e: Exception) {
@@ -240,45 +262,41 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
-        private suspend fun seedAgentDemo(db: AppDatabase) {
-            val u = db.userDao()
+        private suspend fun limpiarUsuariosMock(db: AppDatabase) {
+            try {
+                db.userDao().getIdsUsuariosMock().forEach { uid ->
+                    db.mensajeDao().deleteByUsuario(uid)
+                    db.conversacionDao().deleteByUsuario(uid)
+                }
+                val eliminados = db.userDao().deleteUsuariosMock()
+                if (eliminados > 0) {
+                    android.util.Log.d("PagoFlexSeed", "usuarios mock eliminados=$eliminados")
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("PagoFlexSeed", "limpieza de usuarios mock failed", e)
+            }
+        }
+
+        private suspend fun seedConversacionesAtencion(db: AppDatabase) {
             val c = db.conversacionDao()
             val m = db.mensajeDao()
             try {
-                val hasher = com.example.pagoflex.security.PasswordHasher
-                val salt = hasher.generateSalt()
-                val hash = hasher.hash("PagoFlex123!", salt)
-                if (u.getById(950L) == null) {
-                    u.insert(UserEntity(950, "DEMO-CAMILA", "Camila Torres", null, "camila.torres@correo.ejemplo", hash, salt, "USUARIO", "+56 9 0000 0201", "Santiago", null, null, null, true, null, 3, true))
-                    u.insert(UserEntity(951, "DEMO-MATIAS", "Matias Rojas", null, "matias.rojas@correo.ejemplo", hash, salt, "USUARIO", "+56 9 0000 0202", "Santiago", null, null, null, true, null, 3, true))
-                    u.insert(UserEntity(952, "DEMO-VALENTINA", "Valentina Soto", null, "valentina.soto@correo.ejemplo", hash, salt, "USUARIO", "+56 9 0000 0203", "Santiago", null, null, null, true, null, 3, true))
-                }
                 val fmt = java.time.format.DateTimeFormatter.ofPattern("dd-MM-uuuu HH:mm")
                 val now = java.time.LocalDateTime.now()
-                val demos = listOf(
-                    Triple(950L, "Camila Torres", "Realice un pago ayer y todavia no aparece reflejado en mis compromisos."),
-                    Triple(951L, "Matias Rojas", "No puedo visualizar mis compromisos de pago en la aplicacion."),
-                    Triple(952L, "Valentina Soto", "Como puedo descargar el comprobante de uno de mis pagos?")
+                val solicitudes = listOf(
+                    1L to "Realicé un pago ayer y todavía no aparece reflejado en mis compromisos.",
+                    2L to "No puedo visualizar mis compromisos de pago en la aplicación.",
+                    5L to "¿Cómo puedo descargar el comprobante de uno de mis pagos?"
                 )
-                demos.forEach { (uid, nombre, msg) ->
+                solicitudes.forEach { (uid, msg) ->
                     if (c.getByUsuarioOne(uid) == null) {
                         val convId = c.insert(ConversacionEntity(idUsuario = uid, fechaCreacion = now.format(fmt), estado = "PENDIENTE"))
                         m.insert(MensajeEntity(idConversacion = convId, idRemitente = uid, rolRemitente = "USUARIO", contenido = msg, fechaHora = now.format(fmt)))
                     }
                 }
-                android.util.Log.d("PagoFlexSeed", "agent demo done")
+                android.util.Log.d("PagoFlexSeed", "conversaciones de atencion listas")
             } catch (e: Exception) {
-                android.util.Log.e("PagoFlexSeed", "agent demo failed", e)
-            }
-        }
-
-        private suspend fun cleanupDemoConversations(db: AppDatabase) {
-            try {
-                db.mensajeDao().deleteByUsuario(900L)
-                db.conversacionDao().deleteByUsuario(900L)
-                android.util.Log.d("PagoFlexSeed", "demo conversations cleaned")
-            } catch (e: Exception) {
-                android.util.Log.e("PagoFlexSeed", "cleanup failed", e)
+                android.util.Log.e("PagoFlexSeed", "conversaciones de atencion failed", e)
             }
         }
     }
