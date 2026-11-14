@@ -66,10 +66,12 @@ fun PanelEjecutivoEmpresaScreen(
     ejecutivoViewModel: EjecutivoViewModel = viewModel()
 ) {
     val compromisosTodos by ejecutivoViewModel.compromisos.collectAsStateWithLifecycle()
-    val pagos by ejecutivoViewModel.pagos.collectAsStateWithLifecycle()
     val usuarios by ejecutivoViewModel.usuarios.collectAsStateWithLifecycle()
     val usuarioActual by ejecutivoViewModel.usuarioActual.collectAsStateWithLifecycle()
     val mensaje by ejecutivoViewModel.success.collectAsStateWithLifecycle()
+    val errorGeneral by ejecutivoViewModel.error.collectAsStateWithLifecycle()
+    val resumen by ejecutivoViewModel.resumen.collectAsStateWithLifecycle()
+    val actualizando by ejecutivoViewModel.actualizando.collectAsStateWithLifecycle()
 
     val ejecutivo = user ?: usuarioActual
     val empresaId = ejecutivo?.empresaId
@@ -80,21 +82,11 @@ fun PanelEjecutivoEmpresaScreen(
         else compromisosTodos.filter { it.idEmpresa == empresaId }
     }
 
-    val pagosEmpresa = remember(pagos, compromisos) {
-        val idsCompromisos = compromisos.map { it.id }.toSet()
-        pagos.filter { it.idCompromiso in idsCompromisos }
-    }
-
     var filtroSeleccionado by remember { mutableStateOf("Todos") }
 
     val compromisosFiltrados = compromisos.filter {
         filtroSeleccionado == "Todos" || etiquetaEstado(it.estado) == filtroSeleccionado
     }
-
-    val totalComprometido = compromisos.sumOf { it.monto }
-    val totalRecaudado = pagosEmpresa.sumOf { it.montoPagado }
-    val pendientes = compromisos.count { it.estado == EstadoCompromiso.PENDIENTE }
-    val vencidos = compromisos.count { it.estado == EstadoCompromiso.VENCIDO }
 
     val nombreEmpresa = ejecutivo?.empresa?.takeIf { it.isNotBlank() }
         ?: compromisos.firstOrNull()?.empresa
@@ -213,13 +205,13 @@ fun PanelEjecutivoEmpresaScreen(
                     ) {
                         IndicadorEjecutivo(
                             titulo = "Comprometido",
-                            valor = formatearPesos(totalComprometido),
+                            valor = formatearPesos(resumen.totalComprometido),
                             modifier = Modifier.weight(1f)
                         )
 
                         IndicadorEjecutivo(
                             titulo = "Recaudado",
-                            valor = formatearPesos(totalRecaudado),
+                            valor = formatearPesos(resumen.totalRecaudado),
                             modifier = Modifier.weight(1f)
                         )
                     }
@@ -232,13 +224,13 @@ fun PanelEjecutivoEmpresaScreen(
                     ) {
                         IndicadorEjecutivo(
                             titulo = "Pendientes",
-                            valor = pendientes.toString(),
+                            valor = resumen.pendientes.toString(),
                             modifier = Modifier.weight(1f)
                         )
 
                         IndicadorEjecutivo(
                             titulo = "Vencidos",
-                            valor = vencidos.toString(),
+                            valor = resumen.vencidos.toString(),
                             modifier = Modifier.weight(1f)
                         )
                     }
@@ -247,13 +239,32 @@ fun PanelEjecutivoEmpresaScreen(
                 item {
                     BotonPrimario(
                         text = "Actualizar información",
-                        onClick = { ejecutivoViewModel.refrescar() }
+                        onClick = { ejecutivoViewModel.actualizarResumen(empresaId) },
+                        enabled = !actualizando
                     )
+
+                    if (actualizando) {
+                        Text(
+                            text = "Actualizando...",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 12.sp,
+                            modifier = Modifier.padding(top = 4.dp)
+                        )
+                    }
 
                     mensaje?.let {
                         Text(
                             text = it,
                             color = MaterialTheme.colorScheme.primary,
+                            fontSize = 12.sp,
+                            modifier = Modifier.padding(top = 4.dp)
+                        )
+                    }
+
+                    errorGeneral?.let {
+                        Text(
+                            text = it,
+                            color = MaterialTheme.colorScheme.error,
                             fontSize = 12.sp,
                             modifier = Modifier.padding(top = 4.dp)
                         )
@@ -296,7 +307,7 @@ fun PanelEjecutivoEmpresaScreen(
                 // Lista de compromisos
                 if (compromisos.isEmpty()) {
                     item {
-                        Text(
+                         Text(
                             text = if (empresaId == null) {
                                 "Tu usuario no tiene una empresa asignada, por lo que no hay compromisos para mostrar."
                             } else {

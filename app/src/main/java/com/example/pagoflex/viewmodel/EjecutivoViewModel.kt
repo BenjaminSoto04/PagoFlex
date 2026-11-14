@@ -12,6 +12,7 @@ import com.example.pagoflex.data.repository.RepositoryProvider
 import com.example.pagoflex.data.repository.UserRepository
 import com.example.pagoflex.data.session.SessionManager
 import com.example.pagoflex.model.Compromiso
+import com.example.pagoflex.model.EstadoCompromiso
 import com.example.pagoflex.model.Pago
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -51,9 +52,37 @@ class EjecutivoViewModel(application: Application) : AndroidViewModel(applicatio
     private val _success = MutableStateFlow<String?>(null)
     val success: StateFlow<String?> = _success.asStateFlow()
 
+    data class ResumenEjecutivo(
+        val totalComprometido: Int = 0,
+        val totalRecaudado: Int = 0,
+        val pendientes: Int = 0,
+        val vencidos: Int = 0
+    )
+
+    private val _resumen = MutableStateFlow(ResumenEjecutivo())
+    val resumen: StateFlow<ResumenEjecutivo> = _resumen.asStateFlow()
+
+    private val _actualizando = MutableStateFlow(false)
+    val actualizando: StateFlow<Boolean> = _actualizando.asStateFlow()
+
+    companion object {
+        private val resumenCompartido = mutableMapOf<String, ResumenEjecutivo>()
+    }
+
     init {
         val userId = SessionManager.userId(application)
-        viewModelScope.launch { _usuarioActual.value = userRepo.getById(userId) }
+        viewModelScope.launch {
+            _usuarioActual.value = userRepo.getById(userId)
+            val usuario = _usuarioActual.value
+            val empresaId = usuario?.empresaId
+            val clave = "${usuario?.id}_${empresaId}"
+            val resumenGuardado = resumenCompartido[clave]
+            if (resumenGuardado != null) {
+                _resumen.value = resumenGuardado
+            } else {
+                actualizarResumen(empresaId, usuario?.id)
+            }
+        }
         viewModelScope.launch { repo.getAll().collect { _compromisos.value = it } }
         viewModelScope.launch { pagoRepo.getAll().collect { _pagos.value = it } }
         viewModelScope.launch { userRepo.getAll().collect { _usuarios.value = it } }
@@ -101,11 +130,68 @@ class EjecutivoViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
-    /** Vuelve a leer los datos locales (los flujos de Room ya están activos). */
-    fun refrescar() {
-        _error.value = null
-        _success.value = "Datos actualizados desde la base local."
+    /** Consulta nuevamente la base de datos local y actualiza las cuatro tarjetas del resumen de la empresa. */
+    fun actualizarResumen(empresaId: Long? = _usuarioActual.value?.empresaId, userId: Long? = _usuarioActual.value?.id) {
+        viewModelScope.launch {
+            _actualizando.value = true
+            _error.value = null
+            try {
+                val todosCompromisos = repo.getAllSync()
+                val todosPagos = pagoRepo.getAllSync()
+
+                val compromisosEmpresa = if (empresaId == null) emptyList()
+                else todosCompromisos.filter { it.idEmpresa == empresaId }
+
+                val idsCompromisos = compromisosEmpresa.map { it.id }.toSet()
+                val pagosEmpresa = todosPagos
+                    .filter { it.idCompromiso in idsCompromisos }
+                    .distinctBy { it.id }
+
+                val pagosPorCompromiso = pagosEmpresa.groupBy { it.idCompromiso }
+
+                var totalComprometido = 0
+                var pendientes = 0
+                var vencidos = 0
+
+                for (compromiso in compromisosEmpresa) {
+                    val totalCompromiso = compromiso.monto + compromiso.recargoAplicado
+                    val pagado = pagosPorCompromiso[compromiso.id]?.sumOf { it.montoPagado } ?: 0
+                    val saldo = (totalCompromiso - pagado).coerceAtLeast(0)
+
+                    if (compromiso.estado != EstadoCompromiso.PAGADO &&
+                        compromiso.estado != EstadoCompromiso.ANULADO
+                    ) {
+                        totalComprometido += saldo
+                    }
+
+                    when (compromiso.estado) {
+                        EstadoCompromiso.PENDIENTE -> if (saldo > 0) pendientes++
+                        EstadoCompromiso.VENCIDO -> if (saldo > 0) vencidos++
+                        else -> Unit
+                    }
+                }
+
+                val totalRecaudado = pagosEmpresa.sumOf { it.montoPagado }
+
+                val resumen = ResumenEjecutivo(
+                    totalComprometido = totalComprometido,
+                    totalRecaudado = totalRecaudado,
+                    pendientes = pendientes,
+                    vencidos = vencidos
+                )
+                _resumen.value = resumen
+                resumenCompartido["${userId}_${empresaId}"] = resumen
+                _success.value = "Datos actualizados desde la base local."
+            } catch (e: Exception) {
+                _error.value = "No se pudieron actualizar los datos. Inténtalo nuevamente."
+            } finally {
+                _actualizando.value = false
+            }
+        }
     }
+
+    /** Compatibilidad con llamadas existentes. */
+    fun refrescar() = actualizarResumen()
 
     fun limpiarMensajes() {
         _error.value = null
