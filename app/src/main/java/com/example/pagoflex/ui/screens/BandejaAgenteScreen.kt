@@ -48,6 +48,8 @@ fun BandejaAgenteScreen(
     val vm: ChatViewModel = viewModel()
     val agenteId = SessionManager.userId(context)
     val convs by vm.conversaciones.collectAsStateWithLifecycle()
+    val usuariosAsignados by vm.usuariosAsignados.collectAsStateWithLifecycle()
+    val convsFiltradas = convs.filter { it.idUsuario in usuariosAsignados }
     val mensajes by vm.mensajes.collectAsStateWithLifecycle()
     val convId by vm.conversacionId.collectAsStateWithLifecycle()
     val conversacionActual by vm.conversacionActual.collectAsStateWithLifecycle()
@@ -84,7 +86,7 @@ fun BandejaAgenteScreen(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(convs, key = { it.id }) { c ->
+                items(convsFiltradas, key = { it.id }) { c ->
                     EstilosTarjeta.Tarjeta(
                         relleno = PaddingValues(12.dp),
                         onClick = { vm.abrirConversacion(c.id) }

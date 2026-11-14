@@ -24,6 +24,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val _nombresUsuarios = MutableStateFlow(mapaVacio)
     val nombresUsuarios = _nombresUsuarios.asStateFlow()
 
+    private val _usuariosAsignados = MutableStateFlow<List<Long>>(emptyList())
+    val usuariosAsignados = _usuariosAsignados.asStateFlow()
+
     private val _conversacionId = MutableStateFlow<Long?>(null)
     val conversacionId: StateFlow<Long?> = _conversacionId.asStateFlow()
 
@@ -107,6 +110,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun initAgente() {
+        val agenteId = com.example.pagoflex.data.session.SessionManager.userId(getApplication())
         bandejaConvsJob?.cancel()
         bandejaConvsJob = viewModelScope.launch {
             repo.getAllConversaciones().collect { _conversaciones.value = it }
@@ -115,6 +119,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         usuariosMapJob = viewModelScope.launch {
             userRepo.getAll().collect { usuarios ->
                 _nombresUsuarios.value = usuarios.associate { it.id to it.nombre }
+                _usuariosAsignados.value = usuarios
+                    .filter { it.rol == "USUARIO" && it.agenteAsignadoId == agenteId }
+                    .map { it.id }
             }
         }
     }
