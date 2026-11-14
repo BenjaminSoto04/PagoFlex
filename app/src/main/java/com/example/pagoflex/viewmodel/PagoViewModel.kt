@@ -20,6 +20,7 @@ import kotlinx.coroutines.runBlocking
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
+import kotlinx.coroutines.flow.first
 
 class PagosViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -77,11 +78,19 @@ class PagosViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private suspend fun refrescarVencimientosInternal() {
-        val list = _compromisos.value
-        list.forEach { c ->
-            if (c.estado == EstadoCompromiso.PENDIENTE) {
-                val updated = actualizarVencimiento(c)
-                if (updated.estado != c.estado || updated.recargoAplicado != c.recargoAplicado) {
+        val userId = currentUserId()
+
+        //Consultar directamente los compromisos del usuario actual.
+        val list = compromisoRepo.getByUsuario(userId).first()
+
+        list.forEach { compromiso ->
+            if (compromiso.estado == EstadoCompromiso.PENDIENTE){
+                val updated = actualizarVencimiento(compromiso)
+
+                if (
+                    updated.estado != compromiso.estado ||
+                    updated.recargoAplicado != compromiso.recargoAplicado
+                ) {
                     compromisoRepo.update(updated)
                 }
             }
