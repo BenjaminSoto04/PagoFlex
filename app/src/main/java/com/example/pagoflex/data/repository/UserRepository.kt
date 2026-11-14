@@ -49,7 +49,10 @@ class UserRepositoryImpl(private val db: AppDatabase) : UserRepository {
                 passwordHash = hash,
                 salt = salt,
                 rol = rol,
-                telefono = telefono,
+                telefono = telefono ?: "+56 9 00000000",
+                rut = null,
+                comuna = "Santiago",
+                fechaIncorporacion = "01-01-2024",
                 empresa = empresa,
                 preguntaSeguridad = preguntaSeguridad.trim(),
                 respuestaSeguridad = PreguntasSeguridad.normalizarRespuesta(respuestaSeguridad)
@@ -59,6 +62,7 @@ class UserRepositoryImpl(private val db: AppDatabase) : UserRepository {
     }
 
     override suspend fun login(email: String, password: String): Result<UserEntity> {
+        AppDatabase.awaitSeed()
         val user = db.userDao().getByEmail(email.trim().lowercase())
             ?: return Result.failure(IllegalArgumentException("Usuario no encontrado"))
         if (!com.example.pagoflex.security.PasswordHasher.verify(password, user.salt, user.passwordHash)) {
@@ -67,7 +71,10 @@ class UserRepositoryImpl(private val db: AppDatabase) : UserRepository {
         return Result.success(user)
     }
 
-    override suspend fun getById(id: Long): UserEntity? = db.userDao().getById(id)
+    override suspend fun getById(id: Long): UserEntity? {
+        AppDatabase.awaitSeed()
+        return db.userDao().getById(id)
+    }
 
     override suspend fun getByEmail(email: String): UserEntity? = db.userDao().getByEmail(email.trim())
 

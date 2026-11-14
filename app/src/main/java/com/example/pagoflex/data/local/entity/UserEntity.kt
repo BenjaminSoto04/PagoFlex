@@ -40,6 +40,7 @@ data class UserEntity(
     val avisosDias: Int? = 3,
     val avisosActivos: Boolean = true,
     val empresa: String? = null,
+    val agenteAsignadoId: Long? = null,
     val fotoUri: String? = null,
     val preguntaSeguridad: String = PreguntasSeguridad.PREGUNTA_DEFAULT,
     val respuestaSeguridad: String = PreguntasSeguridad.RESPUESTA_DEFAULT

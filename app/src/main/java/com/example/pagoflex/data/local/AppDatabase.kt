@@ -22,6 +22,7 @@ import com.example.pagoflex.data.local.entity.PagoEntity
 import com.example.pagoflex.data.local.entity.PreguntasSeguridad
 import com.example.pagoflex.data.local.entity.ReporteEntity
 import com.example.pagoflex.data.local.entity.UserEntity
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.firstOrNull
@@ -40,7 +41,7 @@ import kotlinx.coroutines.sync.withLock
         ConversacionEntity::class,
         MensajeEntity::class
     ],
-    version = 17,
+    version = 18,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -80,9 +81,18 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_17_18 = object : androidx.room.migration.Migration(17, 18) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE usuarios ADD COLUMN agenteAsignadoId INTEGER")
+            }
+        }
+
         private val seedLock = Mutex()
         @Volatile private var seeded = false
         @Volatile private var demoSeeded = false
+        private val seedDeferred = CompletableDeferred<Unit>()
+
+        suspend fun awaitSeed() = seedDeferred.await()
 
         fun getDatabase(context: Context): AppDatabase {
             val instance = INSTANCE ?: synchronized(this) {
@@ -91,7 +101,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "pagoflex.db"
                 )
-                    .addMigrations(MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17)
+                    .addMigrations(MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18)
                     .addCallback(object : Callback() {
                         override fun onCreate(db: SupportSQLiteDatabase) {
                             super.onCreate(db)
@@ -105,10 +115,16 @@ abstract class AppDatabase : RoomDatabase() {
                 newInstance
             }
             CoroutineScope(Dispatchers.IO).launch {
-                seed(instance)
-                limpiarUsuariosMock(instance)
-                seedDemo(instance)
-                seedConversacionesAtencion(instance)
+                try {
+                    seed(instance)
+                    limpiarUsuariosMock(instance)
+                    seedDemo(instance)
+                    seedConversacionesAtencion(instance)
+                    seedMensajesAgentes(instance)
+                    completarDatosUsuarios(instance)
+                } finally {
+                    seedDeferred.complete(Unit)
+                }
             }
             return instance
         }
@@ -146,38 +162,39 @@ abstract class AppDatabase : RoomDatabase() {
                     empresas.forEach { e.insert(it) }
 
                     val users = listOf(
-                        UserEntity(1, "UF-01", "Camila Andrea Rojas Peña", "15.834.207-3", "crojas@correo.ejemplo", hash, salt, "USUARIO", "+56 9 0000 0101", "Maipú", null, null, null, true, "14-03-2023", 3, true, null, null, pregDefault, respDefault),
-                        UserEntity(2, "UF-02", "Luis Alberto Muñoz Tapia", "12.476.318-5", "lmunoz@correo.ejemplo", hash, salt, "USUARIO", "+56 9 0000 0102", "Puente Alto", null, null, null, true, "02-11-2023", 1, true, null, null, pregDefault, respDefault),
-                        UserEntity(3, "UF-03", "Rosa Elena Contreras Díaz", "6.893.541-5", "rcontreras@correo.ejemplo", hash, salt, "USUARIO", "+56 9 0000 0103", "San Miguel", null, null, null, true, "20-06-2024", 5, true, null, null, pregDefault, respDefault),
-                        UserEntity(4, "UF-04", "Matías Ignacio Soto Vergara", "21.045.873-5", "msoto@correo.ejemplo", hash, salt, "USUARIO", "+56 9 0000 0104", "La Florida", null, null, null, true, "07-03-2025", null, false, null, null, pregDefault, respDefault),
-                        UserEntity(5, "UF-05", "Fernanda Paz Godoy Lagos", "17.562.904-1", "fgodoy@correo.ejemplo", hash, salt, "USUARIO", "+56 9 0000 0105", "Ñuñoa", null, null, null, true, "15-01-2024", 3, true, null, null, pregDefault, respDefault),
-                        UserEntity(6, "UF-06", "Héctor Manuel Pizarro Campos", "10.318.265-4", "hpizarro@correo.ejemplo", hash, salt, "USUARIO", "+56 9 0000 0106", "Quilicura", null, null, null, true, "28-08-2023", 3, true, null, null, pregDefault, respDefault),
-                        UserEntity(7, "UF-07", "Javiera Constanza Reyes Molina", "19.287.430-0", "jreyes@correo.ejemplo", hash, salt, "USUARIO", "+56 9 0000 0107", "San Bernardo", null, null, null, true, "03-05-2025", 1, true, null, null, pregDefault, respDefault),
-                        UserEntity(8, "UF-08", "Benjamín Esteban Araya Fuentes", "18.704.396-4", "baraya@correo.ejemplo", hash, salt, "USUARIO", "+56 9 0000 0108", "Estación Central", null, null, null, true, "11-09-2026", 3, true, null, null, pregDefault, respDefault),
-                        UserEntity(900, "TEST-USUARIO", "Usuario Prueba", null, "usuario.prueba@pagoflex.cl", hash, salt, "USUARIO", null, null, null, null, null, true, null, 3, true, null, null, pregDefault, respDefault),
-                        UserEntity(901, "TEST-EJECUTIVO", "Ejecutivo Prueba", null, "ejecutivo.prueba@pagoflex.cl", hash, salt, "EJECUTIVO", null, null, 1001, null, "Ejecutivo de cobranza", true, null, null, true, null, null, pregDefault, respDefault),
-                        UserEntity(902, "TEST-AGENTE", "Agente Prueba", null, "agente.prueba@pagoflex.cl", hash, salt, "AGENTE", null, null, null, "Soporte", null, true, null, null, true, null, null, pregDefault, respDefault)
+                        UserEntity(1, "UF-01", "Camila Andrea Rojas Peña", "15.834.207-3", "crojas@correo.ejemplo", hash, salt, "USUARIO", "+56 9 5555 0101", "Maipú", null, null, null, true, "14-03-2023", 3, true, null, 101, null, pregDefault, respDefault),
+                        UserEntity(2, "UF-02", "Luis Alberto Muñoz Tapia", "12.476.318-5", "lmunoz@correo.ejemplo", hash, salt, "USUARIO", "+56 9 5555 0102", "Puente Alto", null, null, null, true, "02-11-2023", 1, true, null, 101, null, pregDefault, respDefault),
+                        UserEntity(3, "UF-03", "Rosa Elena Contreras Díaz", "6.893.541-5", "rcontreras@correo.ejemplo", hash, salt, "USUARIO", "+56 9 5555 0103", "San Miguel", null, null, null, true, "20-06-2024", 5, true, null, 102, null, pregDefault, respDefault),
+                        UserEntity(4, "UF-04", "Matías Ignacio Soto Vergara", "21.045.873-5", "msoto@correo.ejemplo", hash, salt, "USUARIO", "+56 9 5555 0104", "La Florida", null, null, null, true, "07-03-2025", 3, false, null, 102, null, pregDefault, respDefault),
+                        UserEntity(5, "UF-05", "Fernanda Paz Godoy Lagos", "17.562.904-1", "fgodoy@correo.ejemplo", hash, salt, "USUARIO", "+56 9 5555 0105", "Ñuñoa", null, null, null, true, "15-01-2024", 3, true, null, 103, null, pregDefault, respDefault),
+                        UserEntity(6, "UF-06", "Héctor Manuel Pizarro Campos", "10.318.265-4", "hpizarro@correo.ejemplo", hash, salt, "USUARIO", "+56 9 5555 0106", "Quilicura", null, null, null, true, "28-08-2023", 3, true, null, 103, null, pregDefault, respDefault),
+                        UserEntity(7, "UF-07", "Javiera Constanza Reyes Molina", "19.287.430-0", "jreyes@correo.ejemplo", hash, salt, "USUARIO", "+56 9 5555 0107", "San Bernardo", null, null, null, true, "03-05-2025", 1, true, null, 104, null, pregDefault, respDefault),
+                        UserEntity(8, "UF-08", "Benjamín Esteban Araya Fuentes", "18.704.396-4", "baraya@correo.ejemplo", hash, salt, "USUARIO", "+56 9 5555 0108", "Estación Central", null, null, null, true, "11-09-2026", 3, true, null, 104, null, pregDefault, respDefault),
+                        UserEntity(9, "UF-09", "Valentina Isabel Herrera Soto", "20.123.456-7", "valentina.herrera@correo.ejemplo", hash, salt, "USUARIO", "+56 9 5555 0190", "Santiago", null, null, null, true, "10-01-2026", 3, true, null, 105, null, pregDefault, respDefault)
                     )
+
                     users.forEach { u.insert(it) }
 
                     val agentes = listOf(
-                        UserEntity(101, "AG-01", "Andrés Felipe Lagos Meza", "16.248.317-K", "alagos@pagoflex.ejemplo", hash, salt, "AGENTE", null, null, null, "Soporte", null, true, null, null, true, null, null, pregDefault, respDefault),
-                        UserEntity(102, "AG-02", "Daniela Sofía Ortiz Bravo", "18.352.091-1", "dortiz@pagoflex.ejemplo", hash, salt, "AGENTE", null, null, null, "Soporte", null, true, null, null, true, null, null, pregDefault, respDefault),
-                        UserEntity(103, "AG-03", "Ricardo José Salinas Cáceres", "13.907.264-2", "rsalinas@pagoflex.ejemplo", hash, salt, "AGENTE", null, null, null, "Soporte", null, false, null, null, true, null, null, pregDefault, respDefault),
-                        UserEntity(104, "AG-04", "Valentina Ignacia Paredes Silva", "17.781.435-0", "vparedes@pagoflex.ejemplo", hash, salt, "AGENTE", null, null, null, "Comercial", null, true, null, null, true, null, null, pregDefault, respDefault),
-                        UserEntity(105, "AG-05", "Tomás Alejandro Vidal Rojas", "19.564.028-9", "tvidal@pagoflex.ejemplo", hash, salt, "AGENTE", null, null, null, "Comercial", null, true, null, null, true, null, null, pregDefault, respDefault)
+                        UserEntity(101, "AG-01", "Andrés Felipe Lagos Meza", "16.248.317-K", "alagos@pagoflex.ejemplo", hash, salt, "AGENTE", "+56 9 5555 0201", "Santiago", null, "Soporte", "Agente de soporte", true, "12-01-2023", 3, true, null, null, null, pregDefault, respDefault),
+                        UserEntity(102, "AG-02", "Daniela Sofía Ortiz Bravo", "18.352.091-1", "dortiz@pagoflex.ejemplo", hash, salt, "AGENTE", "+56 9 5555 0202", "Maipú", null, "Soporte", "Agente de soporte", true, "05-04-2023", 3, true, null, null, null, pregDefault, respDefault),
+                        UserEntity(103, "AG-03", "Ricardo José Salinas Cáceres", "13.907.264-2", "rsalinas@pagoflex.ejemplo", hash, salt, "AGENTE", "+56 9 5555 0203", "Puente Alto", null, "Soporte", "Agente de soporte", false, "18-08-2023", 3, true, null, null, null, pregDefault, respDefault),
+                        UserEntity(104, "AG-04", "Valentina Ignacia Paredes Silva", "17.781.435-0", "vparedes@pagoflex.ejemplo", hash, salt, "AGENTE", "+56 9 5555 0204", "Ñuñoa", null, "Comercial", "Agente comercial", true, "22-01-2024", 3, true, null, null, null, pregDefault, respDefault),
+                        UserEntity(105, "AG-05", "Tomás Alejandro Vidal Rojas", "19.564.028-9", "tvidal@pagoflex.ejemplo", hash, salt, "AGENTE", "+56 9 5555 0205", "La Florida", null, "Comercial", "Agente comercial", true, "09-06-2024", 3, true, null, null, null, pregDefault, respDefault)
                     )
+
                     agentes.forEach { u.insert(it) }
 
                     val ejecutivos = listOf(
-                        UserEntity(201, "EJ-01", "Paula Andrea Saavedra Núñez", "14.629.853-2", "psaavedra@altosmaipo.ejemplo", hash, salt, "EJECUTIVO", "+56 9 0000 0401", null, 1001, null, "Ejecutiva de cobranza", true, null, null, true, null, null, pregDefault, respDefault),
-                        UserEntity(202, "EJ-02", "Marco Antonio Fuentes Riquelme", "11.853.720-3", "mfuentes@bosquenativo.ejemplo", hash, salt, "EJECUTIVO", "+56 9 0000 0402", null, 1002, null, "Encargado de finanzas", true, null, null, true, null, null, pregDefault, respDefault),
-                        UserEntity(203, "EJ-03", "Claudia Beatriz Henríquez Soto", "15.370.946-7", "chenriquez@creditoandino.ejemplo", hash, salt, "EJECUTIVO", "+56 9 0000 0403", null, 1003, null, "Jefa de cobranza", true, null, null, true, null, null, pregDefault, respDefault),
-                        UserEntity(204, "EJ-04", "Felipe Ignacio Morales Tapia", "17.095.482-3", "fmorales@creditoandino.ejemplo", hash, salt, "EJECUTIVO", "+56 9 0000 0404", null, 1003, null, "Ejecutivo de cobranza", true, null, null, true, null, null, pregDefault, respDefault),
-                        UserEntity(205, "EJ-05", "Gloria Inés Carrasco Vega", "9.846.217-1", "gcarrasco@loshalcones.ejemplo", hash, salt, "EJECUTIVO", "+56 9 0000 0405", null, 1006, null, "Tesorera", true, null, null, true, null, null, pregDefault, respDefault),
-                        UserEntity(206, "EJ-06", "Sebastián Andrés Núñez Olivares", "18.930.571-0", "snunez@itcordillera.ejemplo", hash, salt, "EJECUTIVO", "+56 9 0000 0406", null, 1007, null, "Analista de finanzas", true, null, null, true, null, null, pregDefault, respDefault),
-                        UserEntity(207, "EJ-07", "Mónica Patricia Leiva Castro", "12.584.396-4", "mleiva@plazaoriente.ejemplo", hash, salt, "EJECUTIVO", "+56 9 0000 0407", null, 1008, null, "Administradora de cobranza", true, null, null, true, null, null, pregDefault, respDefault)
+                        UserEntity(201, "EJ-01", "Paula Andrea Saavedra Núñez", "14.629.853-2", "psaavedra@altosmaipo.ejemplo", hash, salt, "EJECUTIVO", "+56 9 0000 0401", "San José de Maipo", 1001, "Cobranza", "Ejecutiva de cobranza", true, "10-03-2023", 3, true, "Altos del Maipo", null, null, pregDefault, respDefault),
+                        UserEntity(202, "EJ-02", "Marco Antonio Fuentes Riquelme", "11.853.720-3", "mfuentes@bosquenativo.ejemplo", hash, salt, "EJECUTIVO", "+56 9 0000 0402", "Providencia", 1002, "Finanzas", "Encargado de finanzas", true, "15-05-2023", 3, true, "Bosque Nativo", null, null, pregDefault, respDefault),
+                        UserEntity(203, "EJ-03", "Claudia Beatriz Henríquez Soto", "15.370.946-7", "chenriquez@creditoandino.ejemplo", hash, salt, "EJECUTIVO", "+56 9 0000 0403", "Las Condes", 1003, "Cobranza", "Jefa de cobranza", true, "20-07-2023", 3, true, "Crédito Andino", null, null, pregDefault, respDefault),
+                        UserEntity(204, "EJ-04", "Felipe Ignacio Morales Tapia", "17.095.482-3", "fmorales@creditoandino.ejemplo", hash, salt, "EJECUTIVO", "+56 9 0000 0404", "Vitacura", 1003, "Cobranza", "Ejecutivo de cobranza", true, "12-09-2023", 3, true, "Crédito Andino", null, null, pregDefault, respDefault),
+                        UserEntity(205, "EJ-05", "Gloria Inés Carrasco Vega", "9.846.217-1", "gcarrasco@loshalcones.ejemplo", hash, salt, "EJECUTIVO", "+56 9 0000 0405", "La Reina", 1006, "Finanzas", "Tesorera", true, "03-02-2024", 3, true, "Los Halcones", null, null, pregDefault, respDefault),
+                        UserEntity(206, "EJ-06", "Sebastián Andrés Núñez Olivares", "18.930.571-0", "snunez@itcordillera.ejemplo", hash, salt, "EJECUTIVO", "+56 9 0000 0406", "Peñalolén", 1007, "Finanzas", "Analista de finanzas", true, "18-04-2024", 3, true, "IT Cordillera", null, null, pregDefault, respDefault),
+                        UserEntity(207, "EJ-07", "Mónica Patricia Leiva Castro", "12.584.396-4", "mleiva@plazaoriente.ejemplo", hash, salt, "EJECUTIVO", "+56 9 0000 0407", "La Florida", 1008, "Cobranza", "Administradora de cobranza", true, "25-06-2024", 3, true, "Plaza Oriente", null, null, pregDefault, respDefault)
                     )
+
                     ejecutivos.forEach { u.insert(it) }
 
                     suspend fun insComp(id: Long, folio: String, userId: Long, empId: Long, empresa: String, concepto: String, cuota: Int?, total: Int?, monto: Int, fecha: String, estado: String, recargo: Int) {
@@ -226,7 +243,7 @@ abstract class AppDatabase : RoomDatabase() {
         }
 
         private suspend fun seedDemo(db: AppDatabase) {
-            val userId = 900L
+            val userId = 9L
             val c = db.compromisoDao()
             val p = db.pagoDao()
             try {
@@ -297,6 +314,108 @@ abstract class AppDatabase : RoomDatabase() {
                 android.util.Log.d("PagoFlexSeed", "conversaciones de atencion listas")
             } catch (e: Exception) {
                 android.util.Log.e("PagoFlexSeed", "conversaciones de atencion failed", e)
+            }
+        }
+
+        private suspend fun seedMensajesAgentes(db: AppDatabase) {
+            val cdao = db.conversacionDao()
+            val mdao = db.mensajeDao()
+            val fmt = java.time.format.DateTimeFormatter.ofPattern("dd-MM-uuuu HH:mm")
+            val now = java.time.LocalDateTime.now()
+            val mensajes = mapOf(
+                1L to "Hola, ¿podrían confirmar el estado de mi compromiso pendiente?",
+                2L to "Tengo una consulta sobre la fecha de vencimiento de mi cuota.",
+                3L to "Quisiera saber si mi pago fue registrado correctamente.",
+                4L to "Necesito información sobre mi cuota pendiente.",
+                5L to "Confirmo que recibí el comprobante de mi pago.",
+                6L to "Tengo dudas sobre el monto pendiente.",
+                7L to "¿Podrían revisar mi compromiso vencido?",
+                8L to "Quisiera consultar el estado de mi cuenta.",
+                9L to "Hola, necesito ayuda con mi compromiso pendiente."
+            )
+            for ((userId, texto) in mensajes) {
+                if (cdao.getByUsuarioOne(userId) == null) {
+                    val convId = cdao.insert(ConversacionEntity(idUsuario = userId, fechaCreacion = now.format(fmt), estado = "PENDIENTE"))
+                    mdao.insert(MensajeEntity(idConversacion = convId, idRemitente = userId, rolRemitente = "USUARIO", contenido = texto, fechaHora = now.format(fmt)))
+                }
+            }
+            android.util.Log.d("PagoFlexSeed", "seedMensajesAgentes done")
+        }
+
+        private suspend fun completarDatosUsuarios(db: AppDatabase) {
+            try {
+                val udao = db.userDao()
+                // Eliminar cuentas de prueba 901 y 902 si existen
+                udao.deleteById(901)
+                udao.deleteById(902)
+                val usuarios = udao.getAll().firstOrNull() ?: return
+                // Migrar usuario 900 -> 9 si no existe ya
+                val usuario900 = udao.getById(900L)
+                if (usuario900 != null && udao.getById(9L) == null) {
+                    udao.deleteById(900L)
+                        udao.insert(usuario900.copy(id = 9L, codigo = "UF-09", nombre = "Valentina Isabel Herrera Soto", email = "valentina.herrera@correo.ejemplo", agenteAsignadoId = 105L))
+                    db.compromisoDao().getAllSync().filter { it.idUsuario == 900L }.forEach { c ->
+                        db.compromisoDao().update(c.copy(idUsuario = 9L))
+                    }
+                } else {
+                    usuarios.find { it.id == 9L }?.let { u ->
+                        udao.update(u.copy(nombre = "Valentina Isabel Herrera Soto", codigo = "UF-09", email = "valentina.herrera@correo.ejemplo", agenteAsignadoId = 105L))
+                    }
+                }
+                val agentes = usuarios.filter { it.rol == "AGENTE" && it.id != 902L }
+                val clientes = usuarios.filter { it.rol == "USUARIO" && it.id != 901L }
+
+                val asignaciones = mapOf(
+                    1L to 101L,
+                    2L to 101L,
+                    3L to 102L,
+                    4L to 102L,
+                    5L to 103L,
+                    6L to 103L,
+                    7L to 104L,
+                    8L to 104L,
+                    9L to 105L
+                )
+                asignaciones.forEach { (userId, agenteId) ->
+                    val user = clientes.find { it.id == userId } ?: udao.getById(userId)
+                    if (user != null && user.agenteAsignadoId != agenteId) {
+                        udao.update(user.copy(agenteAsignadoId = agenteId))
+                    }
+                }
+
+                usuarios.forEach { user ->
+                    var updated = user
+                    var changed = false
+                    if (updated.rut == null) {
+                        updated = updated.copy(rut = "RUT-${updated.id}")
+                        changed = true
+                    }
+                    if (updated.telefono == null) {
+                        updated = updated.copy(telefono = "+56 9 ${10000000 + (updated.id.toInt() * 1234)}")
+                        changed = true
+                    }
+                    if (updated.comuna == null) {
+                        updated = updated.copy(comuna = listOf("Santiago", "Maipú", "Puente Alto", "La Florida", "Ñuñoa").getOrElse((updated.id % 5).toInt()) { "Santiago" })
+                        changed = true
+                    }
+                    if (updated.fechaIncorporacion == null) {
+                        updated = updated.copy(fechaIncorporacion = "01-01-2024")
+                        changed = true
+                    }
+                    if (updated.empresa == null && updated.empresaId != null) {
+                        val empresa = db.empresaDao().getById(updated.empresaId)
+                        if (empresa != null) {
+                            updated = updated.copy(empresa = empresa.nombreFantasia)
+                            changed = true
+                        }
+                    }
+                    if (changed) {
+                        udao.update(updated)
+                    }
+                }
+                android.util.Log.d("PagoFlexSeed", "completarDatosUsuarios done")
+            } catch (e: Exception) {
+                android.util.Log.e("PagoFlexSeed", "completarDatosUsuarios failed", e)
             }
         }
     }

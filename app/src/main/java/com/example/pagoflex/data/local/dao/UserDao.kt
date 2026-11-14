@@ -44,4 +44,7 @@ interface UserDao {
     /** Elimina los usuarios mock creados por versiones anteriores de la app. */
     @Query("DELETE FROM usuarios WHERE codigo LIKE 'DEMO-%'")
     suspend fun deleteUsuariosMock(): Int
+
+    @Query("DELETE FROM usuarios WHERE id = :id")
+    suspend fun deleteById(id: Long)
 }
