@@ -9,16 +9,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.platform.LocalContext
-import android.net.Uri
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.core.content.FileProvider
-import java.io.File
-import android.os.Environment
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -27,7 +20,6 @@ import com.example.pagoflex.data.session.SessionManager
 import com.example.pagoflex.ui.styles.BotonPrimario
 import com.example.pagoflex.ui.styles.EstilosTarjeta
 import com.example.pagoflex.viewmodel.PagosViewModel
-import androidx.compose.ui.platform.LocalContext
 
 import java.text.NumberFormat
 import java.time.LocalDate
@@ -42,29 +34,24 @@ fun ComprobanteScreen(
     onIrInicio: () -> Unit
 ) {
 
-    // Observar los pagos registrados
     val pagos by pagosViewModel
         .pagos
         .collectAsStateWithLifecycle()
 
-    // Observar los compromisos
     val compromisos by pagosViewModel
         .compromisos
         .collectAsStateWithLifecycle()
 
-    // Buscar el compromiso del usuario
     val currentUserId = SessionManager.userId(LocalContext.current)
     val compromiso = compromisos.find {
         it.id == idCompromiso &&
                 it.idUsuario == currentUserId
     }
 
-    // Buscar el pago confirmado
     val pago = pagos.find {
         it.idCompromiso == idCompromiso
     }
 
-    // Formato de pesos chilenos
     val formatoPesos = NumberFormat.getNumberInstance(
         Locale.forLanguageTag("es-CL")
     )
@@ -89,7 +76,6 @@ fun ComprobanteScreen(
             fontWeight = FontWeight.Bold
         )
 
-        // Validar que existan los datos
         if (compromiso == null || pago == null) {
 
             Text(
@@ -100,7 +86,6 @@ fun ComprobanteScreen(
 
         } else {
 
-            // Informacion de la cuota
             val cuota = if (
                 compromiso.numeroCuota != null &&
                 compromiso.totalCuotas != null
@@ -110,7 +95,6 @@ fun ComprobanteScreen(
                 "No aplica"
             }
 
-            // Determinar si se pago a tiempo
             val formatoFecha =
                 DateTimeFormatter.ofPattern("dd-MM-uuuu")
 
@@ -128,146 +112,106 @@ fun ComprobanteScreen(
                 !fechaPago.isAfter(fechaVencimiento)
 
             EstilosTarjeta.Tarjeta {
-                    // Confirmacion visual
-                    Text(
-                        text = "✓ Pago confirmado",
-                        color = MaterialTheme.colorScheme.primary,
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold
-                    )
-
-                    Text(
-                        text = "Total pagado",
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-
-                    Text(
-                        text = "$ ${
-                            formatoPesos.format(pago.montoPagado)
-                        }",
-
-                        style = MaterialTheme.typography.headlineLarge,
-                        fontWeight = FontWeight.Bold
-                    )
-
-                    HorizontalDivider()
-
-                    // Identificacion del comprobante
-                    Text(
-                        text = "N° comprobante: ${pago.numeroComprobante}"
-                    )
-
-                    Text(
-                        text = "Fecha y hora: ${pago.fechaHora}"
-                    )
-
-                    HorizontalDivider()
-
-                    // Informacion de la empresa
-                    Text(
-                        text = "Empresa",
-                        fontWeight = FontWeight.Bold
-                    )
-
-                    Text(compromiso.empresa)
-
-                    Text(
-                        text = "Concepto: ${compromiso.concepto}"
-                    )
-
-                    Text(
-                        text = "Folio: ${compromiso.folio}"
-                    )
-
-                    Text(
-                        text = "Cuota: $cuota"
-                    )
-
-                    Text(
-                        text = "Vencimiento: ${compromiso.fechaVencimiento}"
-                    )
-
-                    HorizontalDivider()
-
-                    // Desglose del pago
-                    Text(
-                        text = "Detalle del pago",
-                        fontWeight = FontWeight.Bold
-                    )
-
-                    Text(
-                        text = "Monto original: $ ${
-                            formatoPesos.format(compromiso.monto)
-                        }"
-                    )
-
-                    Text(
-                        text = "Recargo: $ ${
-                            formatoPesos.format(
-                                compromiso.recargoAplicado
-                            )
-                        }"
-                    )
-
-                    Text(
-                        text = "Total pagado: $ ${
-                            formatoPesos.format(pago.montoPagado)
-                        }"
-                    )
-
-                    HorizontalDivider()
-
-                    // Informacion del pago
-                    Text(
-                        text = "Canal: ${pago.canal}"
-                    )
-
-                    Text(
-                        text = "Medio de pago: ${pago.medioPago}"
-                    )
-
-                    Text(
-                        text = if (pagoATiempo)
-                            "Pago realizado a tiempo"
-                        else
-                            "Pago realizado después del vencimiento"
-                    )
-            }
-
-            EstilosTarjeta.Tarjeta(
-                color = MaterialTheme.colorScheme.surfaceVariant
-            ) {
                 Text(
-                    text = "Este comprobante corresponde a un pago simulado con fines académicos. No representa una transacción bancaria real.",
-                    style = MaterialTheme.typography.bodySmall
+                    text = "✓ Pago confirmado",
+                    color = MaterialTheme.colorScheme.primary,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+
+                Text(
+                    text = "Total pagado",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+
+                Text(
+                    text = "$ ${
+                        formatoPesos.format(pago.montoPagado)
+                    }",
+
+                    style = MaterialTheme.typography.headlineLarge,
+                    fontWeight = FontWeight.Bold
+                )
+
+                HorizontalDivider()
+
+                Text(
+                    text = "Nº comprobante: ${pago.numeroComprobante}"
+                )
+
+                Text(
+                    text = "Fecha y hora: ${pago.fechaHora}"
+                )
+
+                HorizontalDivider()
+
+                Text(
+                    text = "Empresa",
+                    fontWeight = FontWeight.Bold
+                )
+
+                Text(compromiso.empresa)
+
+                Text(
+                    text = "Concepto: ${compromiso.concepto}"
+                )
+
+                Text(
+                    text = "Folio: ${compromiso.folio}"
+                )
+
+                Text(
+                    text = "Cuota: $cuota"
+                )
+
+                Text(
+                    text = "Vencimiento: ${compromiso.fechaVencimiento}"
+                )
+
+                HorizontalDivider()
+
+                Text(
+                    text = "Detalle del pago",
+                    fontWeight = FontWeight.Bold
+                )
+
+                Text(
+                    text = "Monto original: $ ${
+                        formatoPesos.format(compromiso.monto)
+                    }"
+                )
+
+                Text(
+                    text = "Recargo: $ ${
+                        formatoPesos.format(
+                            compromiso.recargoAplicado
+                        )
+                    }"
+                )
+
+                Text(
+                    text = "Total pagado: $ ${
+                        formatoPesos.format(pago.montoPagado)
+                    }"
+                )
+
+                HorizontalDivider()
+
+                Text(
+                    text = "Canal: ${pago.canal}"
+                )
+
+                Text(
+                    text = "Medio de pago: ${pago.medioPago}"
+                )
+
+                Text(
+                    text = if (pagoATiempo)
+                        "Pago realizado a tiempo"
+                    else
+                        "Pago realizado después del vencimiento"
                 )
             }
-
-            val context = LocalContext.current
-            var photoUri by remember { mutableStateOf<Uri?>(null) }
-            val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { ok ->
-                if (ok && photoUri != null) {
-                    pago?.let { pagosViewModel.adjuntarFotoPago(it.id, photoUri.toString()) }
-                }
-            }
-            BotonPrimario(
-                text = "Tomar foto del comprobante",
-                onClick = {
-                    val file = File(
-                        context.getExternalFilesDir(Environment.DIRECTORY_PICTURES),
-                        "comprobante_${System.currentTimeMillis()}.jpg"
-                    )
-                    file.parentFile?.mkdirs()
-                    val uri = FileProvider.getUriForFile(
-                        context,
-                        "${context.packageName}.fileprovider",
-                        file
-                    )
-                    photoUri = uri
-                    cameraLauncher.launch(uri)
-                }
-            )
-            pago?.fotoUri?.let { Text("Foto adjunta: $it", style = MaterialTheme.typography.bodySmall) }
 
             BotonPrimario(text = "Volver al inicio", onClick = onIrInicio)
         }
