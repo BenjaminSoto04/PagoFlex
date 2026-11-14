@@ -13,6 +13,9 @@ interface CompromisoDao {
     @Query("SELECT * FROM compromisos")
     fun getAll(): Flow<List<CompromisoEntity>>
 
+    @Query("SELECT * FROM compromisos")
+    suspend fun getAllSync(): List<CompromisoEntity>
+
     @Query("SELECT * FROM compromisos WHERE idUsuario = :userId")
     fun getByUsuario(userId: Long): Flow<List<CompromisoEntity>>
 

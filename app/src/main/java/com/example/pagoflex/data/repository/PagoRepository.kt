@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.map
 
 interface PagoRepository {
     fun getAll(): Flow<List<Pago>>
+    suspend fun getAllSync(): List<Pago>
     suspend fun getByCompromiso(idCompromiso: Long): Pago?
     suspend fun insert(p: Pago)
     suspend fun updateFoto(id: Long, uri: String)
@@ -18,6 +19,7 @@ class PagoRepositoryImpl(private val db: AppDatabase) : PagoRepository {
     private fun toEntity(p: Pago) = PagoEntity(p.id, p.numeroComprobante, p.idCompromiso, p.fechaHora, p.montoPagado, p.canal, p.medioPago, p.fotoUri)
 
     override fun getAll(): Flow<List<Pago>> = db.pagoDao().getAll().map { it.map(::toModel) }
+    override suspend fun getAllSync(): List<Pago> = db.pagoDao().getAllSync().map(::toModel)
     override suspend fun getByCompromiso(idCompromiso: Long): Pago? = db.pagoDao().getByCompromiso(idCompromiso)?.let(::toModel)
     override suspend fun insert(p: Pago) = db.pagoDao().insert(toEntity(p))
     override suspend fun updateFoto(id: Long, uri: String) = db.pagoDao().updateFoto(id, uri)

@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.map
 
 interface CompromisoRepository {
     fun getAll(): Flow<List<Compromiso>>
+    suspend fun getAllSync(): List<Compromiso>
     fun getByUsuario(userId: Long): Flow<List<Compromiso>>
     suspend fun getById(id: Long): Compromiso?
     suspend fun insert(c: Compromiso)
@@ -51,6 +52,7 @@ class CompromisoRepositoryImpl(private val db: AppDatabase) : CompromisoReposito
     )
 
     override fun getAll(): Flow<List<Compromiso>> = db.compromisoDao().getAll().map { it.map(::toModel) }
+    override suspend fun getAllSync(): List<Compromiso> = db.compromisoDao().getAllSync().map(::toModel)
     override fun getByUsuario(userId: Long): Flow<List<Compromiso>> = db.compromisoDao().getByUsuario(userId).map { it.map(::toModel) }
     override suspend fun getById(id: Long): Compromiso? = db.compromisoDao().getById(id)?.let(::toModel)
     override suspend fun insert(c: Compromiso) = db.compromisoDao().insert(toEntity(c))

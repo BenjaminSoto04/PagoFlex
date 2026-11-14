@@ -12,6 +12,9 @@ interface PagoDao {
     @Query("SELECT * FROM pagos")
     fun getAll(): Flow<List<PagoEntity>>
 
+    @Query("SELECT * FROM pagos")
+    suspend fun getAllSync(): List<PagoEntity>
+
     @Query("SELECT * FROM pagos WHERE idCompromiso = :idCompromiso")
     suspend fun getByCompromiso(idCompromiso: Long): PagoEntity?
 
