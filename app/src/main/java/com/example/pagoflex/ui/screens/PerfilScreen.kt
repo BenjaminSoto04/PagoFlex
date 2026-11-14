@@ -45,6 +45,7 @@ fun PerfilScreen(
     val errorGeneral by accountViewModel.error.collectAsStateWithLifecycle()
     val errorNombre by accountViewModel.errorNombre.collectAsStateWithLifecycle()
     val errorTelefono by accountViewModel.errorTelefono.collectAsStateWithLifecycle()
+    val errorEmail by accountViewModel.errorEmail.collectAsStateWithLifecycle()
     val errorOld by accountViewModel.errorOld.collectAsStateWithLifecycle()
     val errorNew by accountViewModel.errorNew.collectAsStateWithLifecycle()
     val errorConfirm by accountViewModel.errorConfirm.collectAsStateWithLifecycle()
@@ -53,7 +54,15 @@ fun PerfilScreen(
 
     var nombre by remember(user) { mutableStateOf(user.nombre) }
     var telefono by remember(user) { mutableStateOf(user.telefono ?: "") }
-    var empresa by remember(user) { mutableStateOf(user.empresa ?: "") }
+    var email by remember(user) { mutableStateOf(user.email) }
+    val esUsuario = user.rol == "USUARIO"
+    var nombreEmpresa by remember(user) { mutableStateOf(user.empresa) }
+    val perfilContext = androidx.compose.ui.platform.LocalContext.current
+    LaunchedEffect(user.empresaId) {
+        if (!esUsuario && nombreEmpresa.isNullOrBlank() && user.empresaId != null) {
+            nombreEmpresa = com.example.pagoflex.data.repository.RepositoryProvider.database(perfilContext).empresaDao().getById(user.empresaId)?.nombreFantasia
+        }
+    }
 
     var showPasswordDialog by remember { mutableStateOf(false) }
     var showLogoutDialog by remember { mutableStateOf(false) }
@@ -68,6 +77,7 @@ fun PerfilScreen(
     LaunchedEffect(message) {
         if (message != null) {
             snackbarHostState.showSnackbar(message!!)
+            authViewModel.refreshUser()
             accountViewModel.clear()
         }
     }
@@ -130,7 +140,7 @@ fun PerfilScreen(
             Text("Correo: ${user.email}", style = MaterialTheme.typography.bodyLarge)
             Text("Rol: ${user.rol}", style = MaterialTheme.typography.bodyLarge)
             user.telefono?.let { Text("Teléfono: $it", style = MaterialTheme.typography.bodyLarge) }
-            user.empresa?.let { Text("Empresa: $it", style = MaterialTheme.typography.bodyLarge) }
+            if (!esUsuario) nombreEmpresa?.let { Text("Empresa: $it", style = MaterialTheme.typography.bodyLarge) }
         }
 
         BotonPrimario(text = "Cambiar foto de perfil", onClick = { showPhotoDialog = true })
@@ -155,10 +165,15 @@ fun PerfilScreen(
         )
         EstiloCampo.MensajeError(errorTelefono)
         EstiloCampo.CampoTexto(
-            value = empresa,
-            onValueChange = { empresa = it; accountViewModel.limpiarErrorGeneral() },
-            label = "Empresa (opcional)"
+            value = email,
+            onValueChange = { email = it; accountViewModel.limpiarErrorEmail(); accountViewModel.limpiarErrorGeneral() },
+            label = "Correo electrónico",
+            isError = errorEmail != null,
+            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                keyboardType = androidx.compose.ui.text.input.KeyboardType.Email
+            )
         )
+        EstiloCampo.MensajeError(errorEmail)
         EstiloCampo.MensajeError(errorGeneral)
         BotonPrimario(
             text = "Guardar perfil",
@@ -167,7 +182,8 @@ fun PerfilScreen(
                     user,
                     nombre,
                     telefono.ifBlank { null },
-                    empresa.ifBlank { null }
+                    email,
+                    user.empresa
                 )
             }
         )

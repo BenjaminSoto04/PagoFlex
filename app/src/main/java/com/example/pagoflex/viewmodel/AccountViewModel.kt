@@ -40,15 +40,22 @@ class AccountViewModel(application: Application) : AndroidViewModel(application)
     private val _errorConfirm = MutableStateFlow<String?>(null)
     val errorConfirm: StateFlow<String?> = _errorConfirm.asStateFlow()
 
-    fun updateProfile(user: UserEntity, nombre: String, telefono: String?, empresa: String?) {
+    fun updateProfile(user: UserEntity, nombre: String, telefono: String?, email: String, empresa: String?) {
         _errorNombre.value = Validaciones.nombre(nombre)
         _errorTelefono.value = Validaciones.telefono(telefono.orEmpty())
+        _errorEmail.value = Validaciones.correo(email)
         _error.value = null
-        if (_errorNombre.value != null || _errorTelefono.value != null) return
+        if (_errorNombre.value != null || _errorTelefono.value != null || _errorEmail.value != null) return
 
         viewModelScope.launch {
+            val correoNormalizado = email.trim().lowercase()
+            val existente = repo.getByEmail(correoNormalizado)
+            if (existente != null && existente.id != user.id) {
+                _errorEmail.value = "El correo ya está registrado"
+                return@launch
+            }
             runCatching {
-                repo.updateProfile(user.copy(nombre = nombre.trim(), telefono = telefono, empresa = empresa))
+                repo.updateProfile(user.copy(nombre = nombre.trim(), telefono = telefono, email = correoNormalizado, empresa = empresa))
             }.onSuccess {
                 _message.value = "Perfil actualizado"
             }.onFailure {
