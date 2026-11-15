@@ -13,4 +13,7 @@ interface ReporteDao {
 
     @Query("SELECT * FROM reportes ORDER BY id DESC")
     fun getAll(): Flow<List<ReporteEntity>>
+
+    @Query("SELECT COUNT(*) FROM reportes WHERE idUsuario = :idUsuario")
+    suspend fun countByUsuario(idUsuario: Long): Int
 }

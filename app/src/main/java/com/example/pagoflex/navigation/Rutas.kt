@@ -36,9 +36,11 @@ sealed class Ruta(val ruta: String) {
 
     data object ReportarProblema : Ruta("reportar_problema")
 
+    data object DashboardAgente : Ruta("dashboard_agente")
     data object PanelAgente : Ruta("panel_agente")
     data object AsistenteVirtual : Ruta("asistente_virtual")
     data object BandejaAgente : Ruta("bandeja_agente")
+    data object BandejaReportesAgente : Ruta("bandeja_reportes_agente")
 
     data object PanelEjecutivo : Ruta("panel_ejecutivo")
 

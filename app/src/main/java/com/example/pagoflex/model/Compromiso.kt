@@ -13,5 +13,6 @@ data class Compromiso(
     val fechaVencimiento: String,
     val estado: EstadoCompromiso,
     val recargoAplicado: Int = 0,
-    val motivoAnulacion: String? = null
+    val motivoAnulacion: String? = null,
+    val folioUnico: String? = null
 )

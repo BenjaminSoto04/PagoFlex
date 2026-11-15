@@ -329,7 +329,21 @@ fun TarjetaPagoHistorial(
         )
 
         Text(
-            text = "Estado: Pagado",
+            text = "Folio único: ${pago.folioUnico ?: "No asignado"}"
+        )
+
+        if (pago.cuotaPagada != null) {
+            Text(
+                text = if (compromiso.totalCuotas != null) {
+                    "Cuota pagada: ${pago.cuotaPagada} de ${compromiso.totalCuotas}"
+                } else {
+                    "Cuota pagada: ${pago.cuotaPagada}"
+                }
+            )
+        }
+
+        Text(
+            text = "Estado del pago: Confirmado",
             color = MaterialTheme.colorScheme.primary
         )
 

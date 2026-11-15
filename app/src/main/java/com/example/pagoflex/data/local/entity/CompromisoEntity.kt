@@ -17,5 +17,6 @@ data class CompromisoEntity(
     val fechaVencimiento: String,
     val estado: String,
     val recargoAplicado: Int = 0,
-    val motivoAnulacion: String? = null
+    val motivoAnulacion: String? = null,
+    val folioUnico: String? = null
 )

@@ -42,7 +42,7 @@ class AccountViewModel(application: Application) : AndroidViewModel(application)
 
     fun updateProfile(user: UserEntity, nombre: String, telefono: String?, email: String, empresa: String?) {
         _errorNombre.value = Validaciones.nombre(nombre)
-        _errorTelefono.value = Validaciones.telefono(telefono.orEmpty())
+        _errorTelefono.value = Validaciones.telefonoChileno(telefono.orEmpty())
         _errorEmail.value = Validaciones.correo(email)
         _error.value = null
         if (_errorNombre.value != null || _errorTelefono.value != null || _errorEmail.value != null) return
@@ -55,7 +55,14 @@ class AccountViewModel(application: Application) : AndroidViewModel(application)
                 return@launch
             }
             runCatching {
-                repo.updateProfile(user.copy(nombre = nombre.trim(), telefono = telefono, email = correoNormalizado, empresa = empresa))
+                repo.updateProfile(
+                    user.copy(
+                        nombre = nombre.trim(),
+                        telefono = telefono?.trim()?.takeIf { it.isNotBlank() },
+                        email = correoNormalizado,
+                        empresa = empresa
+                    )
+                )
             }.onSuccess {
                 _message.value = "Perfil actualizado"
             }.onFailure {

@@ -33,7 +33,8 @@ class CompromisoRepositoryImpl(private val db: AppDatabase) : CompromisoReposito
         fechaVencimiento = e.fechaVencimiento,
         estado = EstadoCompromiso.valueOf(e.estado),
         recargoAplicado = e.recargoAplicado,
-        motivoAnulacion = e.motivoAnulacion
+        motivoAnulacion = e.motivoAnulacion,
+        folioUnico = e.folioUnico
     )
     private fun toEntity(c: Compromiso) = CompromisoEntity(
         id = c.id,
@@ -48,7 +49,8 @@ class CompromisoRepositoryImpl(private val db: AppDatabase) : CompromisoReposito
         fechaVencimiento = c.fechaVencimiento,
         estado = c.estado.name,
         recargoAplicado = c.recargoAplicado,
-        motivoAnulacion = c.motivoAnulacion
+        motivoAnulacion = c.motivoAnulacion,
+        folioUnico = c.folioUnico
     )
 
     override fun getAll(): Flow<List<Compromiso>> = db.compromisoDao().getAll().map { it.map(::toModel) }

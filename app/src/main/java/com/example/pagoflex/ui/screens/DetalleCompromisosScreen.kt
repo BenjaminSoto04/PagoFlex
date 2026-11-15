@@ -5,6 +5,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -42,6 +43,10 @@ fun DetalleCompromisoScreen(
     val compromiso = compromisos.find {
         it.id == idCompromiso &&
                 it.idUsuario == currentUserId
+    }
+
+    LaunchedEffect(idCompromiso) {
+        pagosViewModel.asegurarFolioCompromiso(idCompromiso)
     }
 
     // Comprobar si existe
@@ -194,6 +199,10 @@ fun DetalleCompromisoScreen(
 
                 Text(
                     text = "Folio: ${compromiso.folio}"
+                )
+
+                Text(
+                    text = "Folio único: ${compromiso.folioUnico ?: "Generando..."}"
                 )
 
                 Text(

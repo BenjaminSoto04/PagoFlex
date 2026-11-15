@@ -36,16 +36,37 @@ object Validaciones {
         else -> null
     }
 
-    fun telefono(valor: String): String? {
+    /**
+     * Validacion estricta para el perfil: el telefono es obligatorio y debe
+     * corresponder a un numero chileno (movil +56 9 o fijo de Santiago +56 2).
+     */
+    fun telefonoChileno(valor: String): String? {
         val texto = valor.trim()
-        if (texto.isEmpty()) return null // Campo opcional
-        val caracteresPermitidos = texto.all { it.isDigit() || it == ' ' || it == '+' || it == '-' }
-        if (!caracteresPermitidos) return "El teléfono solo puede contener números, espacios y los signos + o -"
-        return if (texto.count { it.isDigit() } < 8) {
-            "El teléfono debe tener al menos 8 dígitos"
-        } else {
-            null
+        if (texto.isEmpty()) return "Ingresa tu teléfono"
+
+        val caracteresPermitidos = texto.all { it.isDigit() || it in " +-()" }
+        if (!caracteresPermitidos) {
+            return "El teléfono solo puede contener números, espacios y los signos +, - o paréntesis"
         }
+
+        val digitos = texto.filter { it.isDigit() }
+        val nacional = when {
+            digitos.startsWith("56") && digitos.length > 9 -> digitos.drop(2)
+            else -> digitos
+        }
+
+        val esMovil = nacional.length == 9 && nacional.startsWith("9")
+        val esFijoSantiago = nacional.length == 9 && nacional.startsWith("2")
+        return if (esMovil || esFijoSantiago) {
+            null
+        } else {
+            "Ingresa un teléfono chileno válido, por ejemplo +56 9 1234 5678"
+        }
+    }
+
+    fun telefono(valor: String): String? {
+        if (valor.isBlank()) return null // Campo opcional en otros formularios
+        return telefonoChileno(valor)
     }
 
     fun empresa(valor: String): String? {

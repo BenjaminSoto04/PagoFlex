@@ -1,6 +1,7 @@
 package com.example.pagoflex.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -11,8 +12,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -27,6 +30,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -68,6 +72,10 @@ fun BandejaAgenteScreen(
             .imePadding()
             .padding(16.dp)
     ) {
+        if (convId == null) {
+            BotonTexto(text = "← Volver al panel", onClick = onVolver)
+        }
+
         Row(
             Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -98,18 +106,11 @@ fun BandejaAgenteScreen(
                         ) {
                             Text(
                                 text = "Usuario: ${nombresUsuarios[c.idUsuario] ?: "ID ${c.idUsuario}"}",
-                                fontWeight = FontWeight.Bold
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.weight(1f)
                             )
-                            Text(
-                                text = c.estado,
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = FontWeight.SemiBold,
-                                color = if (c.estado.equals("FINALIZADO", ignoreCase = true)) {
-                                    MaterialTheme.colorScheme.error
-                                } else {
-                                    MaterialTheme.colorScheme.primary
-                                }
-                            )
+                            Spacer(Modifier.width(8.dp))
+                            EstadoConversacionBadge(estado = c.estado)
                         }
                         Text(
                             text = "Fecha: ${c.fechaCreacion}",
@@ -133,15 +134,18 @@ fun BandejaAgenteScreen(
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold
                     )
-                    Text(
-                        text = "Estado actual: ${conversacionActual?.estado ?: "PENDIENTE"}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = if (estaFinalizada) {
-                            MaterialTheme.colorScheme.error
-                        } else {
-                            MaterialTheme.colorScheme.primary
-                        }
-                    )
+                    Row(
+                        modifier = Modifier.padding(top = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Estado actual:",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        EstadoConversacionBadge(estado = conversacionActual?.estado ?: "PENDIENTE")
+                    }
                 }
 
                 if (!estaFinalizada) {
@@ -253,6 +257,41 @@ fun BandejaAgenteScreen(
                     errorRespuesta = null
                     vm.cerrarConversacion()
                 }
+            )
+        }
+    }
+}
+
+@Composable
+private fun EstadoConversacionBadge(estado: String) {
+    val finalizado = estado.equals("FINALIZADO", ignoreCase = true)
+    val color = if (finalizado) {
+        MaterialTheme.colorScheme.error
+    } else {
+        MaterialTheme.colorScheme.primary
+    }
+    val etiqueta = when {
+        finalizado -> "Finalizada"
+        estado.equals("PENDIENTE", ignoreCase = true) -> "Pendiente"
+        else -> estado.lowercase().replaceFirstChar { it.uppercase() }
+    }
+
+    Surface(
+        modifier = Modifier.widthIn(min = 100.dp),
+        shape = RoundedCornerShape(50),
+        color = color.copy(alpha = 0.12f)
+    ) {
+        Box(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = etiqueta,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = color,
+                textAlign = TextAlign.Center,
+                maxLines = 1
             )
         }
     }

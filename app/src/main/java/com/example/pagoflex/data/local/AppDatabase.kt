@@ -22,6 +22,8 @@ import com.example.pagoflex.data.local.entity.PagoEntity
 import com.example.pagoflex.data.local.entity.PreguntasSeguridad
 import com.example.pagoflex.data.local.entity.ReporteEntity
 import com.example.pagoflex.data.local.entity.UserEntity
+import com.example.pagoflex.ui.styles.Validaciones
+import com.example.pagoflex.util.FolioGenerator
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -41,7 +43,7 @@ import kotlinx.coroutines.sync.withLock
         ConversacionEntity::class,
         MensajeEntity::class
     ],
-    version = 18,
+    version = 20,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -87,9 +89,25 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_18_19 = object : androidx.room.migration.Migration(18, 19) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE compromisos ADD COLUMN folioUnico TEXT")
+                db.execSQL("ALTER TABLE pagos ADD COLUMN folioUnico TEXT")
+                db.execSQL("ALTER TABLE pagos ADD COLUMN cuotaPagada INTEGER")
+            }
+        }
+
+        val MIGRATION_19_20 = object : androidx.room.migration.Migration(19, 20) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE pagos ADD COLUMN fechaVencimientoCuota TEXT")
+            }
+        }
+
         private val seedLock = Mutex()
+        private val datosExtendidosLock = Mutex()
         @Volatile private var seeded = false
         @Volatile private var demoSeeded = false
+        @Volatile private var datosExtendidosListos = false
         private val seedDeferred = CompletableDeferred<Unit>()
 
         suspend fun awaitSeed() = seedDeferred.await()
@@ -101,7 +119,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "pagoflex.db"
                 )
-                    .addMigrations(MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18)
+                    .addMigrations(MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20)
                     .addCallback(object : Callback() {
                         override fun onCreate(db: SupportSQLiteDatabase) {
                             super.onCreate(db)
@@ -122,6 +140,7 @@ abstract class AppDatabase : RoomDatabase() {
                     seedConversacionesAtencion(instance)
                     seedMensajesAgentes(instance)
                     completarDatosUsuarios(instance)
+                    seedDatosExtendidos(instance)
                 } finally {
                     seedDeferred.complete(Unit)
                 }
@@ -345,9 +364,6 @@ abstract class AppDatabase : RoomDatabase() {
         private suspend fun completarDatosUsuarios(db: AppDatabase) {
             try {
                 val udao = db.userDao()
-                // Eliminar cuentas de prueba 901 y 902 si existen
-                udao.deleteById(901)
-                udao.deleteById(902)
                 val usuarios = udao.getAll().firstOrNull() ?: return
                 // Migrar usuario 900 -> 9 si no existe ya
                 val usuario900 = udao.getById(900L)
@@ -359,7 +375,29 @@ abstract class AppDatabase : RoomDatabase() {
                     }
                 } else {
                     usuarios.find { it.id == 9L }?.let { u ->
-                        udao.update(u.copy(nombre = "Valentina Isabel Herrera Soto", codigo = "UF-09", email = "valentina.herrera@correo.ejemplo", agenteAsignadoId = 105L))
+                        // Conserva los datos que el usuario haya editado en su
+                        // perfil; solo completa lo que falte o sea invalido.
+                        val nombre = u.nombre.takeIf { it.isNotBlank() }
+                            ?: "Valentina Isabel Herrera Soto"
+                        val codigo = u.codigo?.takeIf { it.isNotBlank() } ?: "UF-09"
+                        val email = u.email.takeIf {
+                            it.isNotBlank() && Validaciones.correo(it) == null
+                        } ?: "valentina.herrera@correo.ejemplo"
+                        if (
+                            u.nombre != nombre ||
+                            u.codigo != codigo ||
+                            u.email != email ||
+                            u.agenteAsignadoId == null
+                        ) {
+                            udao.update(
+                                u.copy(
+                                    nombre = nombre,
+                                    codigo = codigo,
+                                    email = email,
+                                    agenteAsignadoId = u.agenteAsignadoId ?: 105L
+                                )
+                            )
+                        }
                     }
                 }
                 val agentes = usuarios.filter { it.rol == "AGENTE" && it.id != 902L }
@@ -417,6 +455,201 @@ abstract class AppDatabase : RoomDatabase() {
             } catch (e: Exception) {
                 android.util.Log.e("PagoFlexSeed", "completarDatosUsuarios failed", e)
             }
+        }
+
+        /**
+         * Agrega las cuentas demo, nuevas empresas y compromisos de ejemplo.
+         * Se ejecuta en cada apertura, pero solo inserta lo que aun no existe.
+         */
+        private suspend fun seedDatosExtendidos(db: AppDatabase) {
+            if (datosExtendidosListos) return
+            datosExtendidosLock.withLock {
+            if (datosExtendidosListos) return@withLock
+            try {
+                val empresaDao = db.empresaDao()
+                val nuevasEmpresas = listOf(
+                    EmpresaEntity(1009, "EC-09", "Banco del Sur S.A.", "Banco del Sur", "97.123.456-7", "Banca", "clientes@bancodelsur.ejemplo", "+56 2 0000 0209", 9000),
+                    EmpresaEntity(1010, "EC-10", "Financiera Sol SpA", "Financiera Sol", "77.654.321-K", "Crédito de consumo", "contacto@financierasol.ejemplo", "+56 2 0000 0210", 6000),
+                    EmpresaEntity(1011, "EC-11", "Retail Norte S.A.", "Retail Norte", "96.876.543-2", "Retail", "pagos@retailnorte.ejemplo", "+56 2 0000 0211", 4000)
+                )
+                nuevasEmpresas.forEach { empresa ->
+                    if (empresaDao.getById(empresa.id) == null) empresaDao.insert(empresa)
+                }
+
+                val hasher = com.example.pagoflex.security.PasswordHasher
+                val salt = hasher.generateSalt()
+                val hash = hasher.hash("PagoFlex123!", salt)
+                val pregDefault = PreguntasSeguridad.PREGUNTA_DEFAULT
+                val respDefault = PreguntasSeguridad.RESPUESTA_DEFAULT
+
+                val ejecutivosNuevos = listOf(
+                    UserEntity(208, "EJ-08", "Javiera Paz Fuentealba Ruiz", "16.904.285-3", "jfuentealba@bancodelsur.ejemplo", hash, salt, "EJECUTIVO", "+56 9 6000 0208", "Las Condes", 1009, "Cobranza", "Ejecutiva de cobranza", true, "08-01-2024", 3, true, "Banco del Sur", null, null, pregDefault, respDefault),
+                    UserEntity(209, "EJ-09", "Rodrigo Andrés Salas Mena", "14.287.650-1", "rsalas@financierasol.ejemplo", hash, salt, "EJECUTIVO", "+56 9 6000 0209", "Santiago", 1010, "Finanzas", "Analista de crédito", true, "19-03-2024", 3, true, "Financiera Sol", null, null, pregDefault, respDefault),
+                    UserEntity(210, "EJ-10", "Carolina Andrea Poblete Rivas", "18.650.294-6", "cpoblete@retailnorte.ejemplo", hash, salt, "EJECUTIVO", "+56 9 6000 0210", "Maipú", 1011, "Cobranza", "Encargada de cobranza", true, "02-06-2024", 3, true, "Retail Norte", null, null, pregDefault, respDefault)
+                )
+                ejecutivosNuevos.forEach { asegurarUsuarioPrueba(db, it, hash, salt, pregDefault, respDefault) }
+
+                val usuariosPrueba = listOf(
+                    UserEntity(901, "TEST-USUARIO", "Usuario Prueba", "11.111.111-1", "usuario.prueba@pagoflex.cl", hash, salt, "USUARIO", "+56 9 6000 0001", "Santiago", null, null, null, true, "01-01-2024", 3, true, null, null, null, pregDefault, respDefault),
+                    UserEntity(902, "TEST-EJECUTIVO", "Ejecutivo Prueba", "12.222.222-2", "ejecutivo.prueba@pagoflex.cl", hash, salt, "EJECUTIVO", "+56 9 6000 0002", "Las Condes", 1009, "Cobranza", "Ejecutivo de cobranza", true, "01-01-2024", 3, true, "Banco del Sur", null, null, pregDefault, respDefault),
+                    UserEntity(903, "TEST-AGENTE", "Agente Prueba", "13.333.333-3", "agente.prueba@pagoflex.cl", hash, salt, "AGENTE", "+56 9 6000 0003", "Providencia", null, "Soporte", "Agente de soporte", true, "01-01-2024", 3, true, null, null, null, pregDefault, respDefault)
+                )
+                usuariosPrueba.forEach { asegurarUsuarioPrueba(db, it, hash, salt, pregDefault, respDefault) }
+
+                val usuarioPrueba = db.userDao().getByEmail("usuario.prueba@pagoflex.cl")
+                val agentePrueba = db.userDao().getByEmail("agente.prueba@pagoflex.cl")
+                if (usuarioPrueba != null && agentePrueba != null && usuarioPrueba.agenteAsignadoId != agentePrueba.id) {
+                    db.userDao().update(usuarioPrueba.copy(agenteAsignadoId = agentePrueba.id))
+                }
+
+                val fmt = java.time.format.DateTimeFormatter.ofPattern("dd-MM-uuuu")
+                val fmtHora = java.time.format.DateTimeFormatter.ofPattern("dd-MM-uuuu HH:mm")
+                val hoy = java.time.LocalDate.now()
+
+                val compromisos = mutableListOf(
+                    CompromisoEntity(120, "CP-2026-0120", 1, 1009, "Banco del Sur", "Crédito de consumo", 6, 18, 98000, "28-11-2026", "PENDIENTE", 0),
+                    CompromisoEntity(121, "CP-2026-0121", 2, 1009, "Banco del Sur", "Crédito de consumo", 9, 12, 64000, "05-12-2026", "PENDIENTE", 0),
+                    CompromisoEntity(122, "CP-2026-0122", 3, 1010, "Financiera Sol", "Crédito personal", 2, 10, 125000, "30-11-2026", "PENDIENTE", 0),
+                    CompromisoEntity(123, "CP-2026-0123", 4, 1010, "Financiera Sol", "Crédito personal", 4, 8, 78000, "20-10-2026", "VENCIDO", 6000),
+                    CompromisoEntity(124, "CP-2026-0124", 7, 1011, "Retail Norte", "Compra en cuotas", 3, 6, 45990, "10-12-2026", "PENDIENTE", 0),
+                    CompromisoEntity(125, "CP-2026-0125", 8, 1011, "Retail Norte", "Compra en cuotas", 5, 6, 45990, "15-10-2026", "EN_REVISION", 0),
+                    CompromisoEntity(126, "CP-2026-0126", 5, 1009, "Banco del Sur", "Crédito de consumo", 2, 12, 55000, "01-10-2026", "PAGADO", 0)
+                )
+
+                val usuarioPruebaId = usuarioPrueba?.id
+                if (usuarioPruebaId != null) {
+                    compromisos += listOf(
+                        CompromisoEntity(9201, "CP-2026-0201", usuarioPruebaId, 1009, "Banco del Sur", "Crédito de consumo", 4, 18, 98000, hoy.plusDays(5).format(fmt), "PENDIENTE", 0),
+                        CompromisoEntity(9202, "CP-2026-0202", usuarioPruebaId, 1010, "Financiera Sol", "Crédito personal", 5, 12, 64000, hoy.minusDays(4).format(fmt), "VENCIDO", 6000),
+                        CompromisoEntity(9203, "CP-2026-0203", usuarioPruebaId, 1011, "Retail Norte", "Compra en cuotas", 2, 6, 45990, hoy.plusDays(12).format(fmt), "PENDIENTE", 0),
+                        CompromisoEntity(9204, "CP-2026-0204", usuarioPruebaId, 1009, "Banco del Sur", "Crédito de consumo", 3, 18, 98000, hoy.minusDays(35).format(fmt), "PAGADO", 0)
+                    )
+                }
+
+                val foliosExistentes = db.compromisoDao().getAllSync().map { it.folio }.toMutableSet()
+                compromisos.forEach { compromiso ->
+                    if (foliosExistentes.add(compromiso.folio)) {
+                        db.compromisoDao().insert(compromiso)
+                    }
+                }
+
+                if (db.pagoDao().getByCompromiso(126) == null) {
+                    db.pagoDao().insert(
+                        PagoEntity(
+                            id = 9202L,
+                            numeroComprobante = "CPR-009202",
+                            idCompromiso = 126L,
+                            fechaHora = "28-09-2026 12:00",
+                            montoPagado = 55000,
+                            canal = "Portal de pagos",
+                            medioPago = "Pago simulado",
+                            folioUnico = FolioGenerator.generar(),
+                            cuotaPagada = 2,
+                            fechaVencimientoCuota = "01-10-2026"
+                        )
+                    )
+                }
+
+                if (db.pagoDao().getByCompromiso(9204) == null) {
+                    db.pagoDao().insert(
+                        PagoEntity(
+                            id = 9201L,
+                            numeroComprobante = "CPR-009201",
+                            idCompromiso = 9204L,
+                            fechaHora = hoy.minusDays(35).format(fmt) + " 10:30",
+                            montoPagado = 98000,
+                            canal = "App",
+                            medioPago = "Pago simulado",
+                            folioUnico = FolioGenerator.generar(),
+                            cuotaPagada = 3,
+                            fechaVencimientoCuota = hoy.minusDays(35).format(fmt)
+                        )
+                    )
+                }
+
+                if (usuarioPruebaId != null && db.reporteDao().countByUsuario(usuarioPruebaId) == 0) {
+                    db.reporteDao().insert(
+                        ReporteEntity(
+                            tipo = "El monto no corresponde",
+                            compromiso = "CP-2026-0202",
+                            descripcion = "La cuota de Financiera Sol muestra un recargo que no reconozco.",
+                            fecha = hoy.minusDays(1).format(fmt),
+                            idUsuario = usuarioPruebaId
+                        )
+                    )
+                }
+
+                if (usuarioPruebaId != null && db.conversacionDao().getByUsuarioOne(usuarioPruebaId) == null) {
+                    val convId = db.conversacionDao().insert(
+                        ConversacionEntity(
+                            idUsuario = usuarioPruebaId,
+                            fechaCreacion = java.time.LocalDateTime.now().format(fmtHora),
+                            estado = "PENDIENTE"
+                        )
+                    )
+                    db.mensajeDao().insert(
+                        MensajeEntity(
+                            idConversacion = convId,
+                            idRemitente = usuarioPruebaId,
+                            rolRemitente = "USUARIO",
+                            contenido = "Hola, necesito ayuda con mi cuota de Banco del Sur.",
+                            fechaHora = java.time.LocalDateTime.now().format(fmtHora)
+                        )
+                    )
+                }
+
+                datosExtendidosListos = true
+                android.util.Log.d("PagoFlexSeed", "seedDatosExtendidos done")
+            } catch (e: Exception) {
+                android.util.Log.e("PagoFlexSeed", "seedDatosExtendidos failed", e)
+            }
+            }
+        }
+
+        private suspend fun asegurarUsuarioPrueba(
+            db: AppDatabase,
+            modelo: UserEntity,
+            hash: String,
+            salt: String,
+            pregDefault: String,
+            respDefault: String
+        ) {
+            val dao = db.userDao()
+            val actual = dao.getByEmail(modelo.email) ?: dao.getById(modelo.id)
+            if (actual == null) {
+                dao.insert(modelo)
+                return
+            }
+            // Solo completa datos faltantes o invalidos: nunca pisa ediciones
+            // validas que el usuario haya hecho desde su perfil.
+            val emailActual = actual.email.takeIf {
+                it.isNotBlank() && Validaciones.correo(it) == null
+            } ?: modelo.email
+            val telefonoActual = actual.telefono?.takeIf {
+                it.isNotBlank() && Validaciones.telefonoChileno(it) == null
+            } ?: modelo.telefono
+            dao.update(
+                actual.copy(
+                    codigo = actual.codigo ?: modelo.codigo,
+                    nombre = actual.nombre.takeIf { it.isNotBlank() } ?: modelo.nombre,
+                    email = emailActual,
+                    rol = actual.rol.takeIf { it.isNotBlank() } ?: modelo.rol,
+                    telefono = telefonoActual,
+                    comuna = actual.comuna?.takeIf { it.isNotBlank() } ?: modelo.comuna,
+                    rut = actual.rut?.takeIf { it.isNotBlank() } ?: modelo.rut,
+                    empresaId = actual.empresaId ?: modelo.empresaId,
+                    area = actual.area?.takeIf { it.isNotBlank() } ?: modelo.area,
+                    cargo = actual.cargo?.takeIf { it.isNotBlank() } ?: modelo.cargo,
+                    activo = true,
+                    fechaIncorporacion = actual.fechaIncorporacion ?: modelo.fechaIncorporacion,
+                    empresa = actual.empresa?.takeIf { it.isNotBlank() } ?: modelo.empresa,
+                    agenteAsignadoId = actual.agenteAsignadoId ?: modelo.agenteAsignadoId,
+                    passwordHash = actual.passwordHash.ifBlank { hash },
+                    salt = actual.salt.ifBlank { salt },
+                    preguntaSeguridad = actual.preguntaSeguridad.ifBlank { pregDefault },
+                    respuestaSeguridad = actual.respuestaSeguridad.ifBlank { respDefault }
+                )
+            )
         }
     }
 }

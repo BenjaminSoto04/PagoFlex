@@ -11,6 +11,7 @@ import com.example.pagoflex.data.session.SessionManager
 import com.example.pagoflex.model.Compromiso
 import com.example.pagoflex.model.EstadoCompromiso
 import com.example.pagoflex.model.Pago
+import com.example.pagoflex.util.FolioGenerator
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -34,7 +35,10 @@ class PagosViewModel(application: Application) : AndroidViewModel(application) {
         3L to 12000,
         5L to 0,
         6L to 2000,
-        8L to 7500
+        8L to 7500,
+        1009L to 9000,
+        1010L to 6000,
+        1011L to 4000
     )
 
     private val _compromisos = MutableStateFlow<List<Compromiso>>(emptyList())
@@ -128,8 +132,14 @@ class PagosViewModel(application: Application) : AndroidViewModel(application) {
             EstadoCompromiso.EN_REVISION -> return "Este compromiso está en revisión"
             EstadoCompromiso.PENDIENTE, EstadoCompromiso.VENCIDO -> Unit
         }
+        // Los compromisos con cuotas pendientes admiten un pago por cuota.
+        val tieneCuotasPendientes = actual.numeroCuota != null &&
+                actual.totalCuotas != null &&
+                actual.numeroCuota < actual.totalCuotas
         val pagoExistente = _pagos.value.any { it.idCompromiso == actual.id }
-        if (pagoExistente) return "Este compromiso ya tiene un pago registrado"
+        if (pagoExistente && !tieneCuotasPendientes) {
+            return "Este compromiso ya tiene un pago registrado"
+        }
 
         val fechaActual = LocalDate.parse(actual.fechaVencimiento, formatoFecha)
         val tieneAnterior = obtenerCompromisos().any { otro ->
@@ -146,18 +156,49 @@ class PagosViewModel(application: Application) : AndroidViewModel(application) {
         return null
     }
 
+    /**
+     * Genera y persiste el folio unico del compromiso cuando el usuario abre su
+     * detalle. Si ya existe, no se modifica.
+     */
+    fun asegurarFolioCompromiso(id: Long) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val compromiso = compromisoRepo.getById(id) ?: return@launch
+            if (compromiso.idUsuario != currentUserId()) return@launch
+            val folioCompromiso = compromiso.folioUnico
+            if (folioCompromiso.isNullOrBlank()) {
+                compromisoRepo.update(compromiso.copy(folioUnico = FolioGenerator.generar()))
+            }
+            _pagos.value
+                .filter { it.idCompromiso == id && it.folioUnico.isNullOrBlank() }
+                .forEach { pago ->
+                    pagoRepo.update(pago.copy(folioUnico = FolioGenerator.generar()))
+                }
+        }
+    }
+
     fun pagarCompromiso(id: Long): String? = runBlocking(Dispatchers.IO) {
         refrescarVencimientosInternal()
         val compromiso = obtenerCompromiso(id) ?: return@runBlocking "Compromiso no encontrado"
         val error = validarPago(compromiso)
         if (error != null) return@runBlocking error
-        if (_pagos.value.any { it.idCompromiso == id }) return@runBlocking "Este compromiso ya tiene un pago registrado"
 
         val siguienteId = (_pagos.value.maxOfOrNull { it.id } ?: 0L) + 1L
         val siguienteFolio = (_pagos.value.maxOfOrNull {
             it.numeroComprobante.removePrefix("CPR-").toLongOrNull() ?: 0L
         } ?: 0L) + 1L
         val numeroComprobante = "CPR-${siguienteFolio.toString().padStart(6, '0')}"
+
+        val folioUnicoPago = FolioGenerator.generar()
+        val folioUnicoCompromiso = compromiso.folioUnico
+            ?.takeIf { it.isNotBlank() }
+            ?: FolioGenerator.generar()
+
+        val cuotaActual = compromiso.numeroCuota
+        val totalCuotas = compromiso.totalCuotas
+        val esMulticuota = cuotaActual != null &&
+                totalCuotas != null &&
+                cuotaActual < totalCuotas
+        val siguienteCuota = if (esMulticuota) cuotaActual + 1 else cuotaActual
 
         val nuevoPago = Pago(
             id = siguienteId,
@@ -166,10 +207,28 @@ class PagosViewModel(application: Application) : AndroidViewModel(application) {
             fechaHora = LocalDateTime.now().format(formatoFechaHora),
             montoPagado = obtenerTotalCompromiso(compromiso),
             canal = "App",
-            medioPago = "Pago simulado"
+            medioPago = "Pago simulado",
+            folioUnico = folioUnicoPago,
+            cuotaPagada = cuotaActual,
+            fechaVencimientoCuota = compromiso.fechaVencimiento
         )
         pagoRepo.insert(nuevoPago)
-        compromisoRepo.update(compromiso.copy(estado = EstadoCompromiso.PAGADO))
+
+        // Con cuotas pendientes el compromiso sigue activo y avanza a la
+        // siguiente cuota; solo se marca PAGADO al pagar la ultima.
+        compromisoRepo.update(
+            compromiso.copy(
+                estado = if (esMulticuota) EstadoCompromiso.PENDIENTE else EstadoCompromiso.PAGADO,
+                folioUnico = folioUnicoCompromiso,
+                numeroCuota = siguienteCuota,
+                fechaVencimiento = if (esMulticuota) {
+                    LocalDate.now().plusMonths(1).format(formatoFecha)
+                } else {
+                    compromiso.fechaVencimiento
+                },
+                recargoAplicado = if (esMulticuota) 0 else compromiso.recargoAplicado
+            )
+        )
         null
     }
 
@@ -179,7 +238,9 @@ class PagosViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun obtenerComprobante(idCompromiso: Long): Pago? =
-        obtenerHistorial().find { it.idCompromiso == idCompromiso }
+        obtenerHistorial()
+            .filter { it.idCompromiso == idCompromiso }
+            .maxByOrNull { it.id }
 
     // Executive helpers
     fun crearCompromiso(compromiso: Compromiso) {
@@ -192,10 +253,5 @@ class PagosViewModel(application: Application) : AndroidViewModel(application) {
 
     fun anularCompromiso(id: Long) {
         viewModelScope.launch(Dispatchers.IO) { compromisoRepo.anular(id) }
-    }
-
-    // attach photo to pago
-    fun adjuntarFotoPago(idPago: Long, uri: String) {
-        viewModelScope.launch(Dispatchers.IO) { pagoRepo.updateFoto(idPago, uri) }
     }
 }

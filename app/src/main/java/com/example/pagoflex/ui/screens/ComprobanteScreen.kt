@@ -5,6 +5,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -17,6 +18,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 import com.example.pagoflex.data.session.SessionManager
+import com.example.pagoflex.model.EstadoCompromiso
 import com.example.pagoflex.ui.styles.BotonPrimario
 import com.example.pagoflex.ui.styles.EstilosTarjeta
 import com.example.pagoflex.viewmodel.PagosViewModel
@@ -48,8 +50,12 @@ fun ComprobanteScreen(
                 it.idUsuario == currentUserId
     }
 
-    val pago = pagos.find {
-        it.idCompromiso == idCompromiso
+    val pago = pagos
+        .filter { it.idCompromiso == idCompromiso }
+        .maxByOrNull { it.id }
+
+    LaunchedEffect(idCompromiso) {
+        pagosViewModel.asegurarFolioCompromiso(idCompromiso)
     }
 
     val formatoPesos = NumberFormat.getNumberInstance(
@@ -86,11 +92,13 @@ fun ComprobanteScreen(
 
         } else {
 
+            val cuotaPagada = pago.cuotaPagada ?: compromiso.numeroCuota
+                .takeIf { compromiso.estado == EstadoCompromiso.PAGADO }
             val cuota = if (
-                compromiso.numeroCuota != null &&
+                cuotaPagada != null &&
                 compromiso.totalCuotas != null
             ) {
-                "${compromiso.numeroCuota} de ${compromiso.totalCuotas}"
+                "$cuotaPagada de ${compromiso.totalCuotas}"
             } else {
                 "No aplica"
             }
@@ -104,7 +112,7 @@ fun ComprobanteScreen(
             )
 
             val fechaVencimiento = LocalDate.parse(
-                compromiso.fechaVencimiento,
+                pago.fechaVencimientoCuota ?: compromiso.fechaVencimiento,
                 formatoFecha
             )
 
@@ -140,6 +148,10 @@ fun ComprobanteScreen(
                 )
 
                 Text(
+                    text = "Folio único del pago: ${pago.folioUnico ?: "No asignado"}"
+                )
+
+                Text(
                     text = "Fecha y hora: ${pago.fechaHora}"
                 )
 
@@ -161,12 +173,26 @@ fun ComprobanteScreen(
                 )
 
                 Text(
-                    text = "Cuota: $cuota"
+                    text = "Folio único del compromiso: ${compromiso.folioUnico ?: "No asignado"}"
                 )
 
                 Text(
-                    text = "Vencimiento: ${compromiso.fechaVencimiento}"
+                    text = "Cuota pagada: $cuota"
                 )
+
+                Text(
+                    text = "Vencimiento de la cuota: ${
+                        pago.fechaVencimientoCuota ?: compromiso.fechaVencimiento
+                    }"
+                )
+
+                if (compromiso.estado == EstadoCompromiso.PENDIENTE ||
+                    compromiso.estado == EstadoCompromiso.VENCIDO
+                ) {
+                    Text(
+                        text = "Próximo vencimiento: ${compromiso.fechaVencimiento}"
+                    )
+                }
 
                 HorizontalDivider()
 

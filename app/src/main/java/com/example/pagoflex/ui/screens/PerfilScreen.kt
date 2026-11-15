@@ -30,6 +30,7 @@ import com.example.pagoflex.ui.styles.BotonPrimario
 import com.example.pagoflex.ui.styles.BotonSecundario
 import com.example.pagoflex.ui.styles.EstiloCampo
 import com.example.pagoflex.ui.styles.EstilosTarjeta
+import com.example.pagoflex.ui.styles.Validaciones
 import com.example.pagoflex.viewmodel.AccountViewModel
 
 @Composable
@@ -55,6 +56,7 @@ fun PerfilScreen(
     var nombre by remember(user) { mutableStateOf(user.nombre) }
     var telefono by remember(user) { mutableStateOf(user.telefono ?: "") }
     var email by remember(user) { mutableStateOf(user.email) }
+    var formularioModificado by remember(user) { mutableStateOf(false) }
     val esUsuario = user.rol == "USUARIO"
     var nombreEmpresa by remember(user) { mutableStateOf(user.empresa) }
     val perfilContext = androidx.compose.ui.platform.LocalContext.current
@@ -81,6 +83,16 @@ fun PerfilScreen(
             accountViewModel.clear()
         }
     }
+
+    val errorNombreValidacion = if (formularioModificado) Validaciones.nombre(nombre) else null
+    val errorTelefonoValidacion = if (formularioModificado) Validaciones.telefonoChileno(telefono) else null
+    val errorEmailValidacion = if (formularioModificado) Validaciones.correo(email) else null
+    val errorNombreMostrado = errorNombreValidacion ?: errorNombre
+    val errorTelefonoMostrado = errorTelefonoValidacion ?: errorTelefono
+    val errorEmailMostrado = errorEmailValidacion ?: errorEmail
+    val formularioValido = Validaciones.nombre(nombre) == null &&
+            Validaciones.telefonoChileno(telefono) == null &&
+            Validaciones.correo(email) == null
 
     val context = androidx.compose.ui.platform.LocalContext.current
     var showPhotoDialog by remember { mutableStateOf(false) }
@@ -149,43 +161,68 @@ fun PerfilScreen(
         Text("Editar perfil", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
         EstiloCampo.CampoTexto(
             value = nombre,
-            onValueChange = { nombre = it; accountViewModel.limpiarErrorNombre(); accountViewModel.limpiarErrorGeneral() },
+            onValueChange = {
+                nombre = it
+                formularioModificado = true
+                accountViewModel.limpiarErrorNombre()
+                accountViewModel.limpiarErrorGeneral()
+            },
             label = "Nombre completo",
-            isError = errorNombre != null
+            isError = errorNombreMostrado != null
         )
-        EstiloCampo.MensajeError(errorNombre)
+        EstiloCampo.MensajeError(errorNombreMostrado)
         EstiloCampo.CampoTexto(
             value = telefono,
-            onValueChange = { telefono = it; accountViewModel.limpiarErrorTelefono(); accountViewModel.limpiarErrorGeneral() },
-            label = "Teléfono (opcional)",
-            isError = errorTelefono != null,
+            onValueChange = {
+                telefono = it
+                formularioModificado = true
+                accountViewModel.limpiarErrorTelefono()
+                accountViewModel.limpiarErrorGeneral()
+            },
+            label = "Teléfono",
+            isError = errorTelefonoMostrado != null,
             keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
                 keyboardType = androidx.compose.ui.text.input.KeyboardType.Phone
             )
         )
-        EstiloCampo.MensajeError(errorTelefono)
+        EstiloCampo.MensajeError(errorTelefonoMostrado)
         EstiloCampo.CampoTexto(
             value = email,
-            onValueChange = { email = it; accountViewModel.limpiarErrorEmail(); accountViewModel.limpiarErrorGeneral() },
+            onValueChange = {
+                email = it
+                formularioModificado = true
+                accountViewModel.limpiarErrorEmail()
+                accountViewModel.limpiarErrorGeneral()
+            },
             label = "Correo electrónico",
-            isError = errorEmail != null,
+            isError = errorEmailMostrado != null,
             keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
                 keyboardType = androidx.compose.ui.text.input.KeyboardType.Email
             )
         )
-        EstiloCampo.MensajeError(errorEmail)
+        EstiloCampo.MensajeError(errorEmailMostrado)
         EstiloCampo.MensajeError(errorGeneral)
+        if (!formularioValido) {
+            Text(
+                text = "Completa nombre, teléfono y correo con formatos válidos para actualizar tu perfil.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
         BotonPrimario(
-            text = "Guardar perfil",
+            text = "Actualizar perfil",
             onClick = {
+                formularioModificado = true
+                if (!formularioValido) return@BotonPrimario
                 accountViewModel.updateProfile(
                     user,
                     nombre,
-                    telefono.ifBlank { null },
+                    telefono.trim(),
                     email,
                     user.empresa
                 )
-            }
+            },
+            enabled = formularioValido
         )
 
         HorizontalDivider()

@@ -11,17 +11,40 @@ interface PagoRepository {
     suspend fun getAllSync(): List<Pago>
     suspend fun getByCompromiso(idCompromiso: Long): Pago?
     suspend fun insert(p: Pago)
-    suspend fun updateFoto(id: Long, uri: String)
+    suspend fun update(p: Pago)
 }
 
 class PagoRepositoryImpl(private val db: AppDatabase) : PagoRepository {
-    private fun toModel(e: PagoEntity) = Pago(e.id, e.numeroComprobante, e.idCompromiso, e.fechaHora, e.montoPagado, e.canal, e.medioPago, e.fotoUri)
-    private fun toEntity(p: Pago) = PagoEntity(p.id, p.numeroComprobante, p.idCompromiso, p.fechaHora, p.montoPagado, p.canal, p.medioPago, p.fotoUri)
+    private fun toModel(e: PagoEntity) = Pago(
+        id = e.id,
+        numeroComprobante = e.numeroComprobante,
+        idCompromiso = e.idCompromiso,
+        fechaHora = e.fechaHora,
+        montoPagado = e.montoPagado,
+        canal = e.canal,
+        medioPago = e.medioPago,
+        folioUnico = e.folioUnico,
+        cuotaPagada = e.cuotaPagada,
+        fechaVencimientoCuota = e.fechaVencimientoCuota
+    )
+
+    private fun toEntity(p: Pago) = PagoEntity(
+        id = p.id,
+        numeroComprobante = p.numeroComprobante,
+        idCompromiso = p.idCompromiso,
+        fechaHora = p.fechaHora,
+        montoPagado = p.montoPagado,
+        canal = p.canal,
+        medioPago = p.medioPago,
+        folioUnico = p.folioUnico,
+        cuotaPagada = p.cuotaPagada,
+        fechaVencimientoCuota = p.fechaVencimientoCuota
+    )
 
     override fun getAll(): Flow<List<Pago>> = db.pagoDao().getAll().map { it.map(::toModel) }
     override suspend fun getAllSync(): List<Pago> = db.pagoDao().getAllSync().map(::toModel)
     override suspend fun getByCompromiso(idCompromiso: Long): Pago? = db.pagoDao().getByCompromiso(idCompromiso)?.let(::toModel)
     override suspend fun insert(p: Pago) = db.pagoDao().insert(toEntity(p))
-    override suspend fun updateFoto(id: Long, uri: String) = db.pagoDao().updateFoto(id, uri)
+    override suspend fun update(p: Pago) = db.pagoDao().update(toEntity(p))
 }
 

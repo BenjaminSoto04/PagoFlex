@@ -21,11 +21,11 @@ All persistence is local; payments are simulated (no backend/Retrofit).
 
 ## Room and data gotchas
 
-- Database `pagoflex.db` is version 16 with `exportSchema = false`. Any entity/schema change requires bumping `@Database(version = ...)` and adding a `Migration` in `AppDatabase.getDatabase`; destructive fallback is not enabled, so a missing migration crashes existing installs. `MIGRATION_15_16` (adds `compromisos.motivoAnulacion`) is the latest template.
+- Database `pagoflex.db` is version 20 with `exportSchema = false`. Any entity/schema change requires bumping `@Database(version = ...)` and adding a `Migration` in `AppDatabase.getDatabase`; destructive fallback is not enabled, so a missing migration crashes existing installs. `MIGRATION_19_20` (adds `pagos.fechaVencimientoCuota`) is the latest template.
 - `AppDatabase.getDatabase` seeds demo companies, users, commitments, payments, reports, and chat conversations on access. Seeds are idempotent but run on the real database; demo/test IDs and accounts are hardcoded in `AppDatabase.kt`.
 - Dates are stored as strings in `dd-MM-uuuu` or `dd-MM-uuuu HH:mm`; money is `Int` CLP. Keep that representation and the entity/model mapping in the repositories unless a migration is included.
 - Commitments persist `EstadoCompromiso.name` as text (`PENDIENTE`, `VENCIDO`, `PAGADO`, `EN_REVISION`, `ANULADO`).
-- Payment rules live in `PagosViewModel` (one payment per commitment, must pay oldest active commitment for the same company first). There is no payment gateway: paying only inserts a local `PagoEntity` and marks the commitment paid.
+- Payment rules live in `PagosViewModel` (one payment per quota, must pay oldest active commitment for the same company first). Paying a commitment with remaining quotas records the payment, advances `numeroCuota` and keeps it `PENDIENTE`; the last quota marks it `PAGADO`. There is no payment gateway: paying only inserts a local `PagoEntity` with a unique `PF-` folio.
 
 ## Demo accounts and docs
 

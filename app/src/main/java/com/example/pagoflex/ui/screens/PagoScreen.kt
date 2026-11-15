@@ -88,20 +88,24 @@ fun PagoScreen(
 
         } else {
 
-            // Buscar el comprobante generado
-            val comprobante = pagos.find {
-                it.idCompromiso == compromiso.id
-            }
+            // Buscar el ultimo comprobante generado
+            val comprobante = pagos
+                .filter { it.idCompromiso == compromiso.id }
+                .maxByOrNull { it.id }
 
-            // Comprobar si el compromiso ya fue pagado
+            // Comprobar si el compromiso ya fue pagado por completo
             val yaEstaPagado =
                 compromiso.estado == EstadoCompromiso.PAGADO
+
+            // Mostrar el exito cuando se acaba de pagar o cuando ya no hay
+            // cuotas pendientes por pagar.
+            val mostrarExito = pagoExitoso || yaEstaPagado
 
             // Comprobar si puede realizarse un nuevo pago
             val mensajeValidacion =
                 pagosViewModel.validarPago(compromiso)
 
-            if (yaEstaPagado && comprobante != null) {
+            if (comprobante != null && mostrarExito) {
 
                 // Pantalla de exito
                 EstilosTarjeta.Tarjeta(
@@ -126,6 +130,24 @@ fun PagoScreen(
                         Text(
                             text = "Comprobante: ${comprobante.numeroComprobante}"
                         )
+
+                        Text(
+                            text = "Folio único: ${comprobante.folioUnico ?: "No asignado"}"
+                        )
+
+                        val cuotaTexto = if (
+                            comprobante.cuotaPagada != null &&
+                            compromiso.totalCuotas != null
+                        ) {
+                            "${comprobante.cuotaPagada} de ${compromiso.totalCuotas}"
+                        } else {
+                            null
+                        }
+                        if (cuotaTexto != null) {
+                            Text(
+                                text = "Cuota pagada: $cuotaTexto"
+                            )
+                        }
 
                         Text(
                             text = "Fecha: ${comprobante.fechaHora}"
@@ -227,6 +249,24 @@ fun PagoScreen(
                         )
 
                         Text("Medio: Pago simulado")
+
+                        if (compromiso.numeroCuota != null && compromiso.totalCuotas != null) {
+                            Text(
+                                text = "Cuota a pagar: ${compromiso.numeroCuota} de ${compromiso.totalCuotas}"
+                            )
+                        }
+
+                        if (comprobante != null && !pagoExitoso) {
+                            val ultimaCuota = comprobante.cuotaPagada
+                            Text(
+                                text = if (ultimaCuota != null) {
+                                    "Último pago registrado: cuota $ultimaCuota (${comprobante.fechaHora})"
+                                } else {
+                                    "Último pago registrado: ${comprobante.fechaHora}"
+                                },
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
                 }
 
                 Text(

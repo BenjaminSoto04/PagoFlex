@@ -28,8 +28,10 @@ import androidx.navigation.navArgument
 import com.example.pagoflex.data.session.SessionManager
 import com.example.pagoflex.ui.screens.AsistenteVirtualScreen
 import com.example.pagoflex.ui.screens.BandejaAgenteScreen
+import com.example.pagoflex.ui.screens.BandejaReportesAgenteScreen
 import com.example.pagoflex.ui.screens.CompromisosScreen
 import com.example.pagoflex.ui.screens.ComprobanteScreen
+import com.example.pagoflex.ui.screens.DashboardAgenteScreen
 import com.example.pagoflex.ui.screens.DetalleCompromisoScreen
 import com.example.pagoflex.ui.screens.GestionAnulacionCompromisosScreen
 import com.example.pagoflex.ui.screens.HistorialScreen
@@ -81,7 +83,7 @@ fun AppNavegacion() {
                     onLoginSuccess = { role ->
                         val dest = when (role) {
                             "EJECUTIVO" -> Ruta.PanelEjecutivo.ruta
-                            "AGENTE" -> Ruta.PanelAgente.ruta
+                            "AGENTE" -> Ruta.DashboardAgente.ruta
                             else -> Ruta.Inicio.ruta
                         }
                         navController.navigate(dest) { popUpTo(Ruta.Login.ruta) { inclusive = true } }
@@ -97,7 +99,7 @@ fun AppNavegacion() {
                         val role = authViewModel.currentUser.value?.rol ?: "USUARIO"
                         val dest = when (role) {
                             "EJECUTIVO" -> Ruta.PanelEjecutivo.ruta
-                            "AGENTE" -> Ruta.PanelAgente.ruta
+                            "AGENTE" -> Ruta.DashboardAgente.ruta
                             else -> Ruta.Inicio.ruta
                         }
                         navController.navigate(dest) { popUpTo(Ruta.Login.ruta) { inclusive = true } }
@@ -274,6 +276,35 @@ fun AppNavegacion() {
                         navController.navigate(Ruta.Perfil.ruta)
                     }
                 )
+            }
+            composable(Ruta.DashboardAgente.ruta) {
+                val role = SessionManager.role(context)
+                if (role != "AGENTE") {
+                    LaunchedEffect(Unit) { navController.navigate(Ruta.Login.ruta) { popUpTo(0) { inclusive = true } } }
+                } else {
+                    DashboardAgenteScreen(
+                        onVerBandejaAtencion = { navController.navigate(Ruta.PanelAgente.ruta) },
+                        onVerBandejaReportes = { navController.navigate(Ruta.BandejaReportesAgente.ruta) },
+                        onVerPerfil = { navController.navigate(Ruta.Perfil.ruta) },
+                        onCerrarSesion = {
+                            navController.navigate(Ruta.Login.ruta) { popUpTo(0) { inclusive = true } }
+                            authViewModel.logout()
+                            accountViewModel.clear()
+                        }
+                    )
+                }
+            }
+            composable(Ruta.BandejaReportesAgente.ruta) {
+                val role = SessionManager.role(context)
+                if (role != "AGENTE") {
+                    LaunchedEffect(Unit) { navController.navigate(Ruta.Login.ruta) { popUpTo(0) { inclusive = true } } }
+                } else {
+                    BandejaReportesAgenteScreen(
+                        onVolver = { navController.popBackStack() },
+                        onVerBandejaAtencion = { navController.navigate(Ruta.PanelAgente.ruta) },
+                        onVerPerfil = { navController.navigate(Ruta.Perfil.ruta) }
+                    )
+                }
             }
             composable(Ruta.PanelAgente.ruta) {
                 val role = SessionManager.role(context)
