@@ -48,6 +48,9 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
     private val _errorGeneral = MutableStateFlow<String?>(null)
     val errorGeneral: StateFlow<String?> = _errorGeneral.asStateFlow()
 
+    private val _cuentaDeshabilitada = MutableStateFlow(false)
+    val cuentaDeshabilitada: StateFlow<Boolean> = _cuentaDeshabilitada.asStateFlow()
+
     // Estados para Recuperación de Contraseña con Pregunta de Seguridad
     private val _preguntasRecuperacion = MutableStateFlow<List<String>>(
         PreguntasSeguridad.LISTA.shuffled().take(4)
@@ -79,16 +82,24 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
         _errorEmail.value = Validaciones.correo(email)
         _errorPassword.value = if (password.isEmpty()) "Ingresa tu contraseña" else null
         _errorGeneral.value = null
+        _cuentaDeshabilitada.value = false
         if (_errorEmail.value != null || _errorPassword.value != null) return
 
         viewModelScope.launch {
             _loading.value = true
             repo.login(email.trim(), password).onSuccess { user ->
-                _currentUser.value = user
-                SessionManager.save(getApplication(), user.id, user.rol)
+                if (!user.activo) {
+                    // Defensa extra: no se guarda sesión ni se navega al panel.
+                    _cuentaDeshabilitada.value = true
+                } else {
+                    _currentUser.value = user
+                    SessionManager.save(getApplication(), user.id, user.rol)
+                }
             }.onFailure { e ->
                 val mensaje = e.message.orEmpty()
                 when {
+                    mensaje.contains("deshabilitada", ignoreCase = true) ->
+                        _cuentaDeshabilitada.value = true
                     mensaje.contains("correo", ignoreCase = true) ||
                             mensaje.contains("usuario", ignoreCase = true) ->
                         _errorEmail.value = "No existe una cuenta registrada con este correo"
@@ -146,7 +157,8 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                 nombre = nombre.trim(),
                 email = email.trim(),
                 password = password,
-                rol = rol,
+                // El registro publico siempre crea cuentas de usuario.
+                rol = "USUARIO",
                 telefono = telefono,
                 empresa = empresa,
                 preguntaSeguridad = preguntaSeguridad.trim(),
@@ -319,6 +331,7 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
     fun limpiarErrorPreguntaSeguridad() { _errorPreguntaSeguridad.value = null }
     fun limpiarErrorRespuestaSeguridad() { _errorRespuestaSeguridad.value = null }
     fun limpiarErrorGeneral() { _errorGeneral.value = null }
+    fun limpiarCuentaDeshabilitada() { _cuentaDeshabilitada.value = false }
 
     fun limpiarErrorRecuperacionEmail() { _errorRecuperacionEmail.value = null }
     fun limpiarErrorRecuperacionPregunta() { _errorRecuperacionPregunta.value = null }
@@ -350,5 +363,6 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
         _errorPreguntaSeguridad.value = null
         _errorRespuestaSeguridad.value = null
         _errorGeneral.value = null
+        _cuentaDeshabilitada.value = false
     }
 }

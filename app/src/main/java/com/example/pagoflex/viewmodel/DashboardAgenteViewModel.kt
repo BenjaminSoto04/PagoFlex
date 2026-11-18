@@ -3,6 +3,7 @@ package com.example.pagoflex.viewmodel
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.pagoflex.data.local.entity.UserEntity
 import com.example.pagoflex.data.repository.ChatRepository
 import com.example.pagoflex.data.repository.Reporte
 import com.example.pagoflex.data.repository.ReporteRepository
@@ -27,14 +28,16 @@ class DashboardAgenteViewModel(application: Application) : AndroidViewModel(appl
         val solicitudesPendientes: Int = 0,
         val reportesTotales: Int = 0,
         val reportesAsignados: Int = 0,
-        val usuariosAsignados: Int = 0
+        val usuariosAsignados: Int = 0,
+        val usuariosRegistrados: Int = 0
     )
 
     data class Estado(
         val resumen: Resumen = Resumen(),
         val reportes: List<Reporte> = emptyList(),
         val nombresUsuarios: Map<Long, String> = emptyMap(),
-        val usuariosAsignados: Set<Long> = emptySet()
+        val usuariosAsignados: Set<Long> = emptySet(),
+        val usuarios: List<UserEntity> = emptyList()
     )
 
     private val _estado = MutableStateFlow(Estado())
@@ -67,11 +70,13 @@ class DashboardAgenteViewModel(application: Application) : AndroidViewModel(appl
                         solicitudesPendientes = pendientes,
                         reportesTotales = reportes.size,
                         reportesAsignados = reportesAsignados,
-                        usuariosAsignados = asignados.size
+                        usuariosAsignados = asignados.size,
+                        usuariosRegistrados = usuarios.size
                     ),
                     reportes = reportes,
                     nombresUsuarios = usuarios.associate { it.id to it.nombre },
-                    usuariosAsignados = asignados
+                    usuariosAsignados = asignados,
+                    usuarios = usuarios.sortedByDescending { it.id }
                 )
             }.collect { _estado.value = it }
         }

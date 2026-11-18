@@ -31,12 +31,14 @@ import com.example.pagoflex.viewmodel.DashboardAgenteViewModel
 fun DashboardAgenteScreen(
     onVerBandejaAtencion: () -> Unit = {},
     onVerBandejaReportes: () -> Unit = {},
+    onVerGestionRoles: () -> Unit = {},
     onVerPerfil: () -> Unit = {},
     onCerrarSesion: () -> Unit = {},
     dashboardViewModel: DashboardAgenteViewModel = viewModel()
 ) {
     val estado by dashboardViewModel.estado.collectAsStateWithLifecycle()
     val resumen = estado.resumen
+    val usuariosRecientes = estado.usuarios.take(3)
 
     Column(
         modifier = Modifier
@@ -93,10 +95,6 @@ fun DashboardAgenteScreen(
                 text = "Abrir atención",
                 onClick = onVerBandejaAtencion
             )
-            BotonSecundario(
-                text = "Ir a reportes",
-                onClick = onVerBandejaReportes
-            )
         }
 
         EstilosTarjeta.Tarjeta(centrada = false) {
@@ -125,9 +123,33 @@ fun DashboardAgenteScreen(
                 text = "Abrir reportes",
                 onClick = onVerBandejaReportes
             )
-            BotonSecundario(
-                text = "Ir a atención",
-                onClick = onVerBandejaAtencion
+        }
+
+        EstilosTarjeta.Tarjeta(centrada = false) {
+            Text(
+                text = "Administración de usuarios",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = "${resumen.usuariosRegistrados} usuarios registrados",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Text(
+                text = if (usuariosRecientes.isEmpty()) {
+                    "Aún no hay usuarios registrados."
+                } else {
+                    "Últimos registros: " + usuariosRecientes.joinToString { "${it.nombre} (${it.rol})" }
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            HorizontalDivider()
+            BotonPrimario(
+                text = "Gestionar usuarios",
+                onClick = onVerGestionRoles
             )
         }
 

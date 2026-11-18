@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -17,6 +18,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.pagoflex.data.repository.UserRepository
 import com.example.pagoflex.ui.styles.BotonPrimario
 import com.example.pagoflex.ui.styles.EstiloCampo
 import com.example.pagoflex.ui.styles.EstilosTarjeta
@@ -35,12 +37,26 @@ fun LoginScreen(
     val errorEmail by authViewModel.errorEmail.collectAsStateWithLifecycle()
     val errorPassword by authViewModel.errorPassword.collectAsStateWithLifecycle()
     val errorGeneral by authViewModel.errorGeneral.collectAsStateWithLifecycle()
+    val cuentaDeshabilitada by authViewModel.cuentaDeshabilitada.collectAsStateWithLifecycle()
 
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var showPass by remember { mutableStateOf(false) }
 
     LaunchedEffect(user) { user?.let { onLoginSuccess(it.rol) } }
+
+    if (cuentaDeshabilitada) {
+        AlertDialog(
+            onDismissRequest = { authViewModel.limpiarCuentaDeshabilitada() },
+            title = { Text("Cuenta deshabilitada") },
+            text = { Text(UserRepository.MENSAJE_CUENTA_DESHABILITADA) },
+            confirmButton = {
+                TextButton(onClick = { authViewModel.limpiarCuentaDeshabilitada() }) {
+                    Text("Entendido")
+                }
+            }
+        )
+    }
 
     Column(
         modifier = Modifier

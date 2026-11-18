@@ -51,7 +51,6 @@ fun RegisterScreen(
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var confirm by remember { mutableStateOf("") }
-    var rol by remember { mutableStateOf("USUARIO") }
     var telefono by remember { mutableStateOf("") }
     var empresa by remember { mutableStateOf("") }
     var preguntaSeguridad by remember { mutableStateOf(PreguntasSeguridad.LISTA.first()) }
@@ -152,12 +151,17 @@ fun RegisterScreen(
         )
         EstiloCampo.MensajeError(errorRespuestaSeguridad)
 
-        EstiloCampo.CampoSelector(
-            label = "Rol",
-            opciones = listOf("USUARIO", "EJECUTIVO", "AGENTE"),
-            textoOpcion = { it },
-            seleccionado = rol,
-            onSeleccionar = { rol = it }
+        EstiloCampo.CampoTexto(
+            value = "USUARIO",
+            onValueChange = {},
+            label = "Rol de la cuenta",
+            readOnly = true,
+            enabled = false
+        )
+        Text(
+            text = "Las cuentas creadas desde este formulario siempre tienen rol USUARIO. Un agente puede cambiar el rol posteriormente.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
 
         EstiloCampo.CampoTexto(
@@ -196,7 +200,7 @@ fun RegisterScreen(
                     nombre = nombre,
                     email = email,
                     password = password,
-                    rol = rol,
+                    rol = "USUARIO",
                     telefono = telefono.ifBlank { null },
                     empresa = empresa.ifBlank { null },
                     preguntaSeguridad = preguntaSeguridad,
