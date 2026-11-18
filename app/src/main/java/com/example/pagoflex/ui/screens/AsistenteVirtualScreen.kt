@@ -43,6 +43,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.pagoflex.data.session.SessionManager
 import com.example.pagoflex.ui.styles.BotonCompacto
+import com.example.pagoflex.ui.styles.BotonPrimario
 import com.example.pagoflex.ui.styles.EstiloCampo
 import com.example.pagoflex.ui.styles.EstilosTarjeta
 import com.example.pagoflex.viewmodel.ChatViewModel
@@ -184,6 +185,15 @@ fun AsistenteVirtualScreen(onVolver: () -> Unit = {}) {
                         color = MaterialTheme.colorScheme.onErrorContainer,
                         fontWeight = FontWeight.Medium,
                         fontSize = 13.sp
+                    )
+                    BotonPrimario(
+                        text = "Iniciar nueva conversación",
+                        onClick = {
+                            texto = ""
+                            errorConsulta = null
+                            vm.iniciarNuevaConversacion(userId)
+                        },
+                        enabled = userId > 0
                     )
                 }
             }

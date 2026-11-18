@@ -169,4 +169,21 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             repo.cambiarEstadoConversacion(id, "FINALIZADO")
         }
     }
+
+    /**
+     * Crea una conversacion nueva. La conversacion anterior se conserva con su
+     * estado actual (FINALIZADO) como historial del usuario.
+     */
+    fun iniciarNuevaConversacion(userId: Long) {
+        if (userId <= 0) return
+        viewModelScope.launch {
+            // Evita crear varias conversaciones si el usuario toca el boton
+            // mas de una vez antes de que Room notifique el cambio.
+            val actual = repo.getConversacionByUsuario(userId)
+            if (actual != null && !actual.estado.equals("FINALIZADO", ignoreCase = true)) {
+                return@launch
+            }
+            repo.crearNuevaConversacion(userId, LocalDateTime.now().format(fmt))
+        }
+    }
 }

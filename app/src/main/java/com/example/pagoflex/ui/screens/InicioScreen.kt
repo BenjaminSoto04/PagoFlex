@@ -33,6 +33,7 @@ fun InicioScreen(
     onVerPerfil: () -> Unit = {},
     onVerAgente: () -> Unit = {},
     onVerReportarProblema: () -> Unit = {},
+    onVerMisReportes: () -> Unit = {},
     onVerAsistente: () -> Unit = {},
     onVerPanelEjecutivo: () -> Unit = {},
     onVerGestionCompromisos: () -> Unit = {},
@@ -86,6 +87,7 @@ fun InicioScreen(
             PagoFlexSecondaryButton("Compromisos", onVerCompromisos, Modifier.weight(1f))
         }
         PagoFlexSecondaryButton("Reportar problema", onVerReportarProblema)
+        PagoFlexSecondaryButton("Mis reportes", onVerMisReportes)
         PagoFlexSecondaryButton("Asistente virtual", onVerAsistente)
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             PagoFlexSecondaryButton("Historial", onVerHistorial, Modifier.weight(1f))

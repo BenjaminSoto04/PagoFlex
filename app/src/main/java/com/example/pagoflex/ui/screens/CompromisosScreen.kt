@@ -12,6 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.graphics.Color
+import com.example.pagoflex.ui.styles.BotonPrimario
 import com.example.pagoflex.ui.styles.BotonTexto
 import com.example.pagoflex.ui.styles.EstilosTarjeta
 import com.example.pagoflex.ui.theme.GrisDeshabilitado
@@ -30,7 +31,8 @@ import java.util.Locale
 fun CompromisosScreen(
     pagosViewModel: PagosViewModel,
     onVolver: () -> Unit,
-    onVerDetalle: (Long) -> Unit
+    onVerDetalle: (Long) -> Unit,
+    onNuevoCompromiso: () -> Unit = {}
 ) {
 
     // Observar los compromisos
@@ -92,6 +94,11 @@ fun CompromisosScreen(
         Text(
             text = "Consulta tus compromisos de pago",
             style = MaterialTheme.typography.bodyMedium
+        )
+
+        BotonPrimario(
+            text = "+ Nuevo compromiso",
+            onClick = onNuevoCompromiso
         )
 
         // Filtros horizontales
