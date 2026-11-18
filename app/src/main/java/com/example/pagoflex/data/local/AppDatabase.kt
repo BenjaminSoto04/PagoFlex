@@ -21,6 +21,7 @@ import com.example.pagoflex.data.local.entity.MensajeEntity
 import com.example.pagoflex.data.local.entity.PagoEntity
 import com.example.pagoflex.data.local.entity.PreguntasSeguridad
 import com.example.pagoflex.data.local.entity.ReporteEntity
+import com.example.pagoflex.data.local.entity.ReporteMensajeEntity
 import com.example.pagoflex.data.local.entity.UserEntity
 import com.example.pagoflex.ui.styles.Validaciones
 import com.example.pagoflex.util.FolioGenerator
@@ -40,10 +41,11 @@ import kotlinx.coroutines.sync.withLock
         PagoEntity::class,
         ComprobanteEntity::class,
         ReporteEntity::class,
+        ReporteMensajeEntity::class,
         ConversacionEntity::class,
         MensajeEntity::class
     ],
-    version = 20,
+    version = 21,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -103,6 +105,32 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_20_21 = object : androidx.room.migration.Migration(20, 21) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE reportes ADD COLUMN estado TEXT NOT NULL DEFAULT 'PENDIENTE'")
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `reporte_mensajes` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `idReporte` INTEGER NOT NULL,
+                        `idRemitente` INTEGER NOT NULL,
+                        `rolRemitente` TEXT NOT NULL,
+                        `contenido` TEXT NOT NULL,
+                        `fechaHora` TEXT NOT NULL
+                    )
+                    """.trimIndent()
+                )
+                // La descripcion original de cada reporte pasa a ser el primer
+                // mensaje del hilo para conservar el historial al migrar.
+                db.execSQL(
+                    """
+                    INSERT INTO reporte_mensajes (idReporte, idRemitente, rolRemitente, contenido, fechaHora)
+                    SELECT id, idUsuario, 'USUARIO', descripcion, fecha FROM reportes
+                    """.trimIndent()
+                )
+            }
+        }
+
         private val seedLock = Mutex()
         private val datosExtendidosLock = Mutex()
         @Volatile private var seeded = false
@@ -119,7 +147,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "pagoflex.db"
                 )
-                    .addMigrations(MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20)
+                    .addMigrations(MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21)
                     .addCallback(object : Callback() {
                         override fun onCreate(db: SupportSQLiteDatabase) {
                             super.onCreate(db)
@@ -247,11 +275,17 @@ abstract class AppDatabase : RoomDatabase() {
                     p.insert(PagoEntity(377, "CPR-000377", 72, "02-09-2026 21:14", 318500, "Agente conversacional", "Pago simulado"))
 
                     r.insert(ReporteEntity(id = 11, tipo = "Ya pagué por otro medio", compromiso = "CP-2026-0109", descripcion = "Pagué por transferencia directa al instituto el 03-10.", fecha = "03-10-2026", idUsuario = 4))
+                    r.insertMensaje(ReporteMensajeEntity(idReporte = 11, idRemitente = 4, rolRemitente = "USUARIO", contenido = "Pagué por transferencia directa al instituto el 03-10.", fechaHora = "03-10-2026"))
                     r.insert(ReporteEntity(id = 9, tipo = "El monto no corresponde", compromiso = "CP-2026-0111", descripcion = "Repacté el crédito y me siguen cobrando la cuota antigua.", fecha = "18-09-2026", idUsuario = 6))
+                    r.insertMensaje(ReporteMensajeEntity(idReporte = 9, idRemitente = 6, rolRemitente = "USUARIO", contenido = "Repacté el crédito y me siguen cobrando la cuota antigua.", fechaHora = "18-09-2026"))
                     r.insert(ReporteEntity(id = 7, tipo = "No reconozco este cobro", compromiso = "CP-2026-0081", descripcion = "Me aparece una matrícula que ya pagué en marzo.", fecha = "02-09-2026", idUsuario = 5))
+                    r.insertMensaje(ReporteMensajeEntity(idReporte = 7, idRemitente = 5, rolRemitente = "USUARIO", contenido = "Me aparece una matrícula que ya pagué en marzo.", fechaHora = "02-09-2026"))
                     r.insert(ReporteEntity(id = 5, tipo = "Otro", compromiso = "CP-2026-0064", descripcion = "El concepto dice \"agosto\" y es la cuota de julio.", fecha = "28-07-2026", idUsuario = 1))
+                    r.insertMensaje(ReporteMensajeEntity(idReporte = 5, idRemitente = 1, rolRemitente = "USUARIO", contenido = "El concepto dice \"agosto\" y es la cuota de julio.", fechaHora = "28-07-2026"))
                     r.insert(ReporteEntity(id = 12, tipo = "El monto no corresponde", compromiso = "CP-2026-0106", descripcion = "No sé por qué me cobran $318.500.", fecha = "05-10-2026", idUsuario = 2))
+                    r.insertMensaje(ReporteMensajeEntity(idReporte = 12, idRemitente = 2, rolRemitente = "USUARIO", contenido = "No sé por qué me cobran $318.500.", fechaHora = "05-10-2026"))
                     r.insert(ReporteEntity(id = 10, tipo = "No reconozco este cobro", compromiso = "CP-2026-0095", descripcion = "Me llegó un cobro de un club al que no pertenezco.", fecha = "30-09-2026", idUsuario = 8))
+                    r.insertMensaje(ReporteMensajeEntity(idReporte = 10, idRemitente = 8, rolRemitente = "USUARIO", contenido = "Me llegó un cobro de un club al que no pertenezco.", fechaHora = "30-09-2026"))
 
                     seeded = true
                     android.util.Log.d("PagoFlexSeed", "seed done count=${db.userDao().count()}")
@@ -568,13 +602,24 @@ abstract class AppDatabase : RoomDatabase() {
                 }
 
                 if (usuarioPruebaId != null && db.reporteDao().countByUsuario(usuarioPruebaId) == 0) {
-                    db.reporteDao().insert(
+                    val descripcionReporte = "La cuota de Financiera Sol muestra un recargo que no reconozco."
+                    val fechaReporte = hoy.minusDays(1).format(fmt)
+                    val reporteId = db.reporteDao().insert(
                         ReporteEntity(
                             tipo = "El monto no corresponde",
                             compromiso = "CP-2026-0202",
-                            descripcion = "La cuota de Financiera Sol muestra un recargo que no reconozco.",
-                            fecha = hoy.minusDays(1).format(fmt),
+                            descripcion = descripcionReporte,
+                            fecha = fechaReporte,
                             idUsuario = usuarioPruebaId
+                        )
+                    )
+                    db.reporteDao().insertMensaje(
+                        ReporteMensajeEntity(
+                            idReporte = reporteId,
+                            idRemitente = usuarioPruebaId,
+                            rolRemitente = "USUARIO",
+                            contenido = descripcionReporte,
+                            fechaHora = fechaReporte
                         )
                     )
                 }
@@ -640,7 +685,9 @@ abstract class AppDatabase : RoomDatabase() {
                     empresaId = actual.empresaId ?: modelo.empresaId,
                     area = actual.area?.takeIf { it.isNotBlank() } ?: modelo.area,
                     cargo = actual.cargo?.takeIf { it.isNotBlank() } ?: modelo.cargo,
-                    activo = true,
+                    // Conserva el estado habilitado/deshabilitado que el agente
+                    // haya definido desde la administración de usuarios.
+                    activo = actual.activo,
                     fechaIncorporacion = actual.fechaIncorporacion ?: modelo.fechaIncorporacion,
                     empresa = actual.empresa?.takeIf { it.isNotBlank() } ?: modelo.empresa,
                     agenteAsignadoId = actual.agenteAsignadoId ?: modelo.agenteAsignadoId,

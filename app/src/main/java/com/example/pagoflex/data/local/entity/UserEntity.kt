@@ -35,6 +35,7 @@ data class UserEntity(
     val empresaId: Long? = null,
     val area: String? = null,
     val cargo: String? = null,
+    /** Cuenta habilitada. Se administra desde GestionRolesScreen. */
     val activo: Boolean = true,
     val fechaIncorporacion: String? = null,
     val avisosDias: Int? = 3,

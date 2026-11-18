@@ -12,6 +12,7 @@ interface CompromisoRepository {
     suspend fun getAllSync(): List<Compromiso>
     fun getByUsuario(userId: Long): Flow<List<Compromiso>>
     suspend fun getById(id: Long): Compromiso?
+    suspend fun nextId(): Long
     suspend fun insert(c: Compromiso)
     suspend fun update(c: Compromiso)
     suspend fun updateEstado(id: Long, estado: EstadoCompromiso)
@@ -57,6 +58,7 @@ class CompromisoRepositoryImpl(private val db: AppDatabase) : CompromisoReposito
     override suspend fun getAllSync(): List<Compromiso> = db.compromisoDao().getAllSync().map(::toModel)
     override fun getByUsuario(userId: Long): Flow<List<Compromiso>> = db.compromisoDao().getByUsuario(userId).map { it.map(::toModel) }
     override suspend fun getById(id: Long): Compromiso? = db.compromisoDao().getById(id)?.let(::toModel)
+    override suspend fun nextId(): Long = (db.compromisoDao().getMaxId() ?: 0L) + 1L
     override suspend fun insert(c: Compromiso) = db.compromisoDao().insert(toEntity(c))
     override suspend fun update(c: Compromiso) = db.compromisoDao().update(toEntity(c))
     override suspend fun updateEstado(id: Long, estado: EstadoCompromiso) = db.compromisoDao().updateEstado(id, estado.name)

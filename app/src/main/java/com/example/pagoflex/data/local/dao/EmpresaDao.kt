@@ -15,6 +15,9 @@ interface EmpresaDao {
     @Query("SELECT * FROM empresas WHERE id = :id")
     suspend fun getById(id: Long): EmpresaEntity?
 
+    @Query("SELECT * FROM empresas ORDER BY id ASC LIMIT 1")
+    suspend fun getFirst(): EmpresaEntity?
+
     @Query("SELECT * FROM empresas WHERE codigo = :codigo")
     suspend fun getByCodigo(codigo: String): EmpresaEntity?
 

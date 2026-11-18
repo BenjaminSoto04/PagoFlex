@@ -22,6 +22,9 @@ interface CompromisoDao {
     @Query("SELECT * FROM compromisos WHERE id = :id")
     suspend fun getById(id: Long): CompromisoEntity?
 
+    @Query("SELECT MAX(id) FROM compromisos")
+    suspend fun getMaxId(): Long?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(c: CompromisoEntity)
 

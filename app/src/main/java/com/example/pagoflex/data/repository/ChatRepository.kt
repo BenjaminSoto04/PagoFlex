@@ -13,6 +13,7 @@ interface ChatRepository {
     fun observeConversacionById(convId: Long): Flow<ConversacionEntity?>
     suspend fun getConversacionById(convId: Long): ConversacionEntity?
     suspend fun getOrCreateConversacion(userId: Long, fecha: String): Long
+    suspend fun crearNuevaConversacion(userId: Long, fecha: String): Long
     fun getMensajes(convId: Long): Flow<List<MensajeEntity>>
     suspend fun enviarMensaje(convId: Long, remitenteId: Long, rol: String, contenido: String, fecha: String)
     suspend fun cambiarEstadoConversacion(convId: Long, estado: String)
@@ -45,6 +46,15 @@ class ChatRepositoryImpl(private val db: AppDatabase) : ChatRepository {
             ConversacionEntity(idUsuario = userId, fechaCreacion = fecha, estado = "PENDIENTE")
         )
     }
+
+    /**
+     * Crea una conversacion nueva sin tocar la anterior. La conversacion
+     * previa conserva su estado (normalmente FINALIZADO) como historial.
+     */
+    override suspend fun crearNuevaConversacion(userId: Long, fecha: String): Long =
+        db.conversacionDao().insert(
+            ConversacionEntity(idUsuario = userId, fechaCreacion = fecha, estado = "PENDIENTE")
+        )
 
     override fun getMensajes(convId: Long): Flow<List<MensajeEntity>> =
         db.mensajeDao().getByConversacion(convId)
