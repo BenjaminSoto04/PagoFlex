@@ -27,6 +27,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.pagoflex.R
 import com.example.pagoflex.data.session.SessionManager
 import com.example.pagoflex.ui.styles.BotonPrimario
+import com.example.pagoflex.ui.styles.BotonSecundario
 import com.example.pagoflex.ui.styles.EstiloCampo
 import com.example.pagoflex.ui.theme.PagoFlexTheme
 import com.example.pagoflex.viewmodel.PagosViewModel
@@ -36,6 +37,7 @@ import com.example.pagoflex.viewmodel.ReportarProblemaViewModel
 fun ReportarProblemaScreen(
     modifier: Modifier = Modifier,
     onVolver: () -> Unit = {},
+    onVerMisReportes: () -> Unit = {},
     reportarViewModel: ReportarProblemaViewModel? = null,
     pagosViewModel: PagosViewModel = viewModel()
 ) {
@@ -154,6 +156,11 @@ fun ReportarProblemaScreen(
             onClick = {
                 vm.validarYEnviar(tipoProblema, compromiso, descripcion, currentUserId)
             }
+        )
+
+        BotonSecundario(
+            text = "Ver mis reportes",
+            onClick = onVerMisReportes
         )
     }
 

@@ -2,6 +2,7 @@ package com.example.pagoflex.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -22,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.pagoflex.data.repository.Reporte
+import com.example.pagoflex.ui.components.EstadoReporteBadge
 import com.example.pagoflex.ui.styles.BotonPrimario
 import com.example.pagoflex.ui.styles.BotonSecundario
 import com.example.pagoflex.ui.styles.BotonTexto
@@ -33,6 +35,7 @@ import com.example.pagoflex.viewmodel.DashboardAgenteViewModel
 fun BandejaReportesAgenteScreen(
     onVolver: () -> Unit = {},
     onVerBandejaAtencion: () -> Unit = {},
+    onVerDetalle: (Long) -> Unit = {},
     onVerPerfil: () -> Unit = {},
     dashboardViewModel: DashboardAgenteViewModel = viewModel()
 ) {
@@ -74,6 +77,11 @@ fun BandejaReportesAgenteScreen(
                 )
             }
         } else {
+            Text(
+                text = "Toca un reporte para abrir la conversación y responder.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
             LazyColumn(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -83,7 +91,8 @@ fun BandejaReportesAgenteScreen(
                         reporte = reporte,
                         nombreUsuario = estado.nombresUsuarios[reporte.idUsuario]
                             ?: "Usuario #${reporte.idUsuario}",
-                        esAsignado = reporte.idUsuario in estado.usuariosAsignados
+                        esAsignado = reporte.idUsuario in estado.usuariosAsignados,
+                        onClick = { onVerDetalle(reporte.id) }
                     )
                 }
             }
@@ -98,20 +107,26 @@ fun BandejaReportesAgenteScreen(
 private fun TarjetaReporteAgente(
     reporte: Reporte,
     nombreUsuario: String,
-    esAsignado: Boolean
+    esAsignado: Boolean,
+    onClick: () -> Unit
 ) {
-    EstilosTarjeta.Tarjeta(centrada = false) {
+    EstilosTarjeta.Tarjeta(
+        centrada = false,
+        relleno = PaddingValues(12.dp),
+        onClick = onClick
+    ) {
+        Text(
+            text = reporte.tipo,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold
+        )
+
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = reporte.tipo,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.weight(1f)
-            )
+            EstadoReporteBadge(estado = reporte.estado)
             Surface(
                 shape = RoundedCornerShape(50),
                 color = if (esAsignado) {
@@ -137,7 +152,8 @@ private fun TarjetaReporteAgente(
         Text(
             text = reporte.descripcion,
             style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 3
         )
 
         Text(
@@ -154,6 +170,13 @@ private fun TarjetaReporteAgente(
             text = "Fecha: ${formatearFecha(reporte.fecha)}",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+
+        Text(
+            text = "Abrir reporte →",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.primary,
+            fontWeight = FontWeight.SemiBold
         )
     }
 }
