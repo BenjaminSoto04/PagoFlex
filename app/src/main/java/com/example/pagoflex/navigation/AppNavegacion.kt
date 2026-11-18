@@ -33,10 +33,15 @@ import com.example.pagoflex.ui.screens.CompromisosScreen
 import com.example.pagoflex.ui.screens.ComprobanteScreen
 import com.example.pagoflex.ui.screens.DashboardAgenteScreen
 import com.example.pagoflex.ui.screens.DetalleCompromisoScreen
+import com.example.pagoflex.ui.screens.DetalleReporteAgenteScreen
+import com.example.pagoflex.ui.screens.DetalleReporteUsuarioScreen
 import com.example.pagoflex.ui.screens.GestionAnulacionCompromisosScreen
+import com.example.pagoflex.ui.screens.GestionRolesScreen
 import com.example.pagoflex.ui.screens.HistorialScreen
 import com.example.pagoflex.ui.screens.InicioScreen
 import com.example.pagoflex.ui.screens.LoginScreen
+import com.example.pagoflex.ui.screens.MisReportesScreen
+import com.example.pagoflex.ui.screens.NuevoCompromisoScreen
 import com.example.pagoflex.ui.screens.PagoScreen
 import com.example.pagoflex.ui.screens.PanelEjecutivoEmpresaScreen
 import com.example.pagoflex.ui.screens.PerfilScreen
@@ -168,6 +173,7 @@ fun AppNavegacion() {
                         },
                         onVerAgente = { navController.navigate(Ruta.PanelAgente.ruta) },
                         onVerReportarProblema = { navController.navigate(Ruta.ReportarProblema.ruta) },
+                        onVerMisReportes = { navController.navigate(Ruta.MisReportes.ruta) },
                         onVerAsistente = { navController.navigate(Ruta.AsistenteVirtual.ruta) },
                         onVerPanelEjecutivo = { navController.navigate(Ruta.PanelEjecutivo.ruta) },
                         onVerGestionCompromisos = { navController.navigate(Ruta.GestionCompromisos.ruta) },
@@ -184,7 +190,8 @@ fun AppNavegacion() {
                     CompromisosScreen(
                         pagosViewModel = pagosViewModel,
                         onVolver = { navController.popBackStack() },
-                        onVerDetalle = { id -> navController.navigate(Ruta.DetalleCompromiso.crear(id)) }
+                        onVerDetalle = { id -> navController.navigate(Ruta.DetalleCompromiso.crear(id)) },
+                        onNuevoCompromiso = { navController.navigate(Ruta.NuevoCompromiso.ruta) }
                     )
                 }
             }
@@ -256,7 +263,49 @@ fun AppNavegacion() {
                 if (role != "USUARIO") {
                     LaunchedEffect(Unit) { navController.navigate(Ruta.Login.ruta) { popUpTo(0) { inclusive = true } } }
                 } else {
-                    ReportarProblemaScreen(onVolver = { navController.popBackStack() })
+                    ReportarProblemaScreen(
+                        onVolver = { navController.popBackStack() },
+                        onVerMisReportes = { navController.navigate(Ruta.MisReportes.ruta) }
+                    )
+                }
+            }
+            composable(Ruta.MisReportes.ruta) {
+                val role = SessionManager.role(context)
+                if (role != "USUARIO") {
+                    LaunchedEffect(Unit) { navController.navigate(Ruta.Login.ruta) { popUpTo(0) { inclusive = true } } }
+                } else {
+                    MisReportesScreen(
+                        onVolver = { navController.popBackStack() },
+                        onVerDetalle = { id -> navController.navigate(Ruta.DetalleReporte.crear(id)) },
+                        onCrearNuevo = { navController.navigate(Ruta.ReportarProblema.ruta) }
+                    )
+                }
+            }
+            composable(
+                route = Ruta.DetalleReporte.ruta,
+                arguments = listOf(navArgument("id") { type = NavType.LongType })
+            ) { entrada ->
+                val role = SessionManager.role(context)
+                if (role != "USUARIO") {
+                    LaunchedEffect(Unit) { navController.navigate(Ruta.Login.ruta) { popUpTo(0) { inclusive = true } } }
+                } else {
+                    val id = entrada.arguments?.getLong("id") ?: 0L
+                    DetalleReporteUsuarioScreen(
+                        reporteId = id,
+                        onVolver = { navController.popBackStack() },
+                        onCrearNuevo = { navController.navigate(Ruta.ReportarProblema.ruta) }
+                    )
+                }
+            }
+            composable(Ruta.NuevoCompromiso.ruta) {
+                val role = SessionManager.role(context)
+                if (role != "USUARIO") {
+                    LaunchedEffect(Unit) { navController.navigate(Ruta.Login.ruta) { popUpTo(0) { inclusive = true } } }
+                } else {
+                    NuevoCompromisoScreen(
+                        onVolver = { navController.popBackStack() },
+                        onGuardado = { navController.popBackStack() }
+                    )
                 }
             }
             composable(Ruta.AsistenteVirtual.ruta) {
@@ -285,6 +334,7 @@ fun AppNavegacion() {
                     DashboardAgenteScreen(
                         onVerBandejaAtencion = { navController.navigate(Ruta.PanelAgente.ruta) },
                         onVerBandejaReportes = { navController.navigate(Ruta.BandejaReportesAgente.ruta) },
+                        onVerGestionRoles = { navController.navigate(Ruta.GestionRoles.ruta) },
                         onVerPerfil = { navController.navigate(Ruta.Perfil.ruta) },
                         onCerrarSesion = {
                             navController.navigate(Ruta.Login.ruta) { popUpTo(0) { inclusive = true } }
@@ -302,8 +352,32 @@ fun AppNavegacion() {
                     BandejaReportesAgenteScreen(
                         onVolver = { navController.popBackStack() },
                         onVerBandejaAtencion = { navController.navigate(Ruta.PanelAgente.ruta) },
+                        onVerDetalle = { id -> navController.navigate(Ruta.DetalleReporteAgente.crear(id)) },
                         onVerPerfil = { navController.navigate(Ruta.Perfil.ruta) }
                     )
+                }
+            }
+            composable(
+                route = Ruta.DetalleReporteAgente.ruta,
+                arguments = listOf(navArgument("id") { type = NavType.LongType })
+            ) { entrada ->
+                val role = SessionManager.role(context)
+                if (role != "AGENTE") {
+                    LaunchedEffect(Unit) { navController.navigate(Ruta.Login.ruta) { popUpTo(0) { inclusive = true } } }
+                } else {
+                    val id = entrada.arguments?.getLong("id") ?: 0L
+                    DetalleReporteAgenteScreen(
+                        reporteId = id,
+                        onVolver = { navController.popBackStack() }
+                    )
+                }
+            }
+            composable(Ruta.GestionRoles.ruta) {
+                val role = SessionManager.role(context)
+                if (role != "AGENTE") {
+                    LaunchedEffect(Unit) { navController.navigate(Ruta.Login.ruta) { popUpTo(0) { inclusive = true } } }
+                } else {
+                    GestionRolesScreen(onVolver = { navController.popBackStack() })
                 }
             }
             composable(Ruta.PanelAgente.ruta) {
