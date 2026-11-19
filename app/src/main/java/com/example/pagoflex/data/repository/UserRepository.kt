@@ -27,6 +27,7 @@ interface UserRepository {
     fun getAll(): Flow<List<UserEntity>>
     suspend fun updateProfile(user: UserEntity)
     suspend fun updateRol(id: Long, rol: String): Result<Unit>
+    suspend fun updateRolConEmpresa(id: Long, empresaId: Long): Result<Unit>
     suspend fun updateFoto(id: Long, fotoUri: String?)
     suspend fun updateActivo(id: Long, activo: Boolean): Result<Unit>
     suspend fun changePassword(id: Long, oldPassword: String, newPassword: String): Result<Unit>
@@ -138,6 +139,28 @@ class UserRepositoryImpl(private val db: AppDatabase) : UserRepository {
                 user.copy(rol = nuevoRol, agenteAsignadoId = agente)
             }
         }
+        db.userDao().update(actualizado)
+        return Result.success(Unit)
+    }
+
+    /**
+     * Asigna el rol EJECUTIVO junto con la empresa elegida desde la gestion de
+     * usuarios. Guarda el id y el nombre de fantasia en la misma fila de Room
+     * para que el panel ejecutivo encuentre sus compromisos al iniciar sesion.
+     */
+    override suspend fun updateRolConEmpresa(id: Long, empresaId: Long): Result<Unit> {
+        val user = db.userDao().getById(id)
+            ?: return Result.failure(IllegalArgumentException("Usuario no encontrado"))
+        val empresa = db.empresaDao().getById(empresaId)
+            ?: return Result.failure(IllegalArgumentException("Empresa no encontrada"))
+
+        val actualizado = user.copy(
+            rol = "EJECUTIVO",
+            empresaId = empresa.id,
+            empresa = empresa.nombreFantasia,
+            area = user.area?.takeIf { it.isNotBlank() } ?: "Cobranza",
+            cargo = user.cargo?.takeIf { it.isNotBlank() } ?: "Ejecutivo"
+        )
         db.userDao().update(actualizado)
         return Result.success(Unit)
     }

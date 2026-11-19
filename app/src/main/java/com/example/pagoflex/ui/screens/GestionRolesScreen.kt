@@ -22,7 +22,9 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -30,6 +32,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.pagoflex.data.local.entity.EmpresaEntity
 import com.example.pagoflex.data.local.entity.UserEntity
 import com.example.pagoflex.data.session.SessionManager
 import com.example.pagoflex.ui.styles.BotonSecundario
@@ -46,6 +49,7 @@ fun GestionRolesScreen(
 ) {
     val actorId = SessionManager.userId(LocalContext.current)
     val usuarios by vm.usuarios.collectAsStateWithLifecycle()
+    val empresas by vm.empresas.collectAsStateWithLifecycle()
     val mensaje by vm.mensaje.collectAsStateWithLifecycle()
     val error by vm.error.collectAsStateWithLifecycle()
     val procesandoId by vm.procesandoId.collectAsStateWithLifecycle()
@@ -92,12 +96,16 @@ fun GestionRolesScreen(
                 items(usuarios, key = { it.id }) { usuario ->
                     TarjetaUsuarioGestion(
                         usuario = usuario,
+                        empresas = empresas,
                         protegido = vm.esProtegido(usuario, actorId),
                         esCuentaPropia = vm.esCuentaPropia(usuario, actorId),
                         procesando = procesandoId == usuario.id,
                         procesandoEstado = procesandoEstadoId == usuario.id,
                         onCambiarRol = { nuevoRol ->
                             vm.cambiarRol(usuario.id, nuevoRol, actorId)
+                        },
+                        onAsignarEmpresa = { empresaId ->
+                            vm.cambiarRolConEmpresa(usuario.id, empresaId, actorId)
                         },
                         onCambiarEstado = { activo ->
                             vm.cambiarEstadoCuenta(usuario.id, activo, actorId)
@@ -121,13 +129,20 @@ fun GestionRolesScreen(
 @Composable
 private fun TarjetaUsuarioGestion(
     usuario: UserEntity,
+    empresas: List<EmpresaEntity>,
     protegido: Boolean,
     esCuentaPropia: Boolean,
     procesando: Boolean,
     procesandoEstado: Boolean,
     onCambiarRol: (String) -> Unit,
+    onAsignarEmpresa: (Long) -> Unit,
     onCambiarEstado: (Boolean) -> Unit
 ) {
+    var rolSeleccionado by remember(usuario.rol) { mutableStateOf(usuario.rol) }
+    var empresaSeleccionada by remember(usuario.empresaId, empresas) {
+        mutableStateOf(empresas.find { it.id == usuario.empresaId })
+    }
+    val mostrarEmpresa = rolSeleccionado == "EJECUTIVO"
     EstilosTarjeta.Tarjeta(
         centrada = false,
         relleno = PaddingValues(12.dp)
@@ -225,14 +240,56 @@ private fun TarjetaUsuarioGestion(
                     label = "Rol",
                     opciones = rolesDisponibles,
                     textoOpcion = { it },
-                    seleccionado = usuario.rol,
-                    onSeleccionar = onCambiarRol
+                    seleccionado = rolSeleccionado,
+                    onSeleccionar = { nuevoRol ->
+                        rolSeleccionado = nuevoRol
+                        if (nuevoRol == "EJECUTIVO") {
+                            // Si ya era ejecutivo se muestra su empresa actual;
+                            // si recién cambia, debe elegir una explícitamente.
+                            empresaSeleccionada = if (usuario.rol == "EJECUTIVO") {
+                                empresas.find { it.id == usuario.empresaId }
+                            } else {
+                                null
+                            }
+                        } else {
+                            onCambiarRol(nuevoRol)
+                        }
+                    }
                 )
-                Text(
-                    text = "Si pasa a EJECUTIVO se asigna una empresa por defecto; si vuelve a USUARIO se asigna un agente de atención.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+
+                if (mostrarEmpresa) {
+                    EstiloCampo.CampoSelector(
+                        label = "Empresa asignada",
+                        opciones = empresas,
+                        textoOpcion = { it.nombreFantasia },
+                        seleccionado = empresaSeleccionada?.nombreFantasia,
+                        placeholder = if (empresas.isEmpty()) {
+                            "No hay empresas registradas"
+                        } else {
+                            "Selecciona una empresa"
+                        },
+                        enabled = empresas.isNotEmpty(),
+                        onSeleccionar = { empresa ->
+                            empresaSeleccionada = empresa
+                            onAsignarEmpresa(empresa.id)
+                        }
+                    )
+                    Text(
+                        text = if (usuario.rol == "EJECUTIVO") {
+                            "Empresa actual del ejecutivo. Al elegir otra se guarda de inmediato."
+                        } else {
+                            "Selecciona la empresa para guardar el rol EJECUTIVO."
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                } else {
+                    Text(
+                        text = "Si vuelve a USUARIO se asigna un agente de atención.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         }
     }
