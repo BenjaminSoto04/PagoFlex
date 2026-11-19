@@ -212,6 +212,14 @@ fun TarjetaCompromiso(
             fontWeight = FontWeight.Bold
         )
 
+        // Cuota actual del compromiso
+        if (compromiso.numeroCuota != null && compromiso.totalCuotas != null) {
+            Text(
+                text = "Cuota ${compromiso.numeroCuota} de ${compromiso.totalCuotas}",
+                style = MaterialTheme.typography.bodySmall
+            )
+        }
+
         // Fecha de vencimiento
         Text(
             text = "Vencimiento: ${compromiso.fechaVencimiento}",

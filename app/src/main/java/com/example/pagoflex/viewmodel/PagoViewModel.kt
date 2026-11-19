@@ -126,23 +126,40 @@ class PagosViewModel(application: Application) : AndroidViewModel(application) {
 
     fun validarPago(compromiso: Compromiso): String? {
         val actual = obtenerCompromiso(compromiso.id) ?: return "Compromiso no encontrado"
+        return validarPagoInterno(
+            actual = actual,
+            compromisosUsuario = obtenerCompromisos(),
+            pagos = _pagos.value
+        )
+    }
+
+    /**
+     * Reglas de pago evaluadas contra una foto consistente de Room: un pago por
+     * cuota y primero el compromiso activo mas antiguo de la misma empresa.
+     */
+    private fun validarPagoInterno(
+        actual: Compromiso,
+        compromisosUsuario: List<Compromiso>,
+        pagos: List<Pago>
+    ): String? {
         when (actual.estado) {
             EstadoCompromiso.PAGADO -> return "Este compromiso ya está pagado"
             EstadoCompromiso.ANULADO -> return "Este compromiso está anulado"
             EstadoCompromiso.EN_REVISION -> return "Este compromiso está en revisión"
             EstadoCompromiso.PENDIENTE, EstadoCompromiso.VENCIDO -> Unit
         }
-        // Los compromisos con cuotas pendientes admiten un pago por cuota.
+        // Una fila representa una cuota: mientras queden cuotas por delante se
+        // permite un pago, aunque ya existan pagos de cuotas anteriores.
         val tieneCuotasPendientes = actual.numeroCuota != null &&
                 actual.totalCuotas != null &&
                 actual.numeroCuota < actual.totalCuotas
-        val pagoExistente = _pagos.value.any { it.idCompromiso == actual.id }
+        val pagoExistente = pagos.any { it.idCompromiso == actual.id }
         if (pagoExistente && !tieneCuotasPendientes) {
             return "Este compromiso ya tiene un pago registrado"
         }
 
         val fechaActual = LocalDate.parse(actual.fechaVencimiento, formatoFecha)
-        val tieneAnterior = obtenerCompromisos().any { otro ->
+        val tieneAnterior = compromisosUsuario.any { otro ->
             val fechaOtro = LocalDate.parse(otro.fechaVencimiento, formatoFecha)
             val estaActivo = otro.estado == EstadoCompromiso.PENDIENTE || otro.estado == EstadoCompromiso.VENCIDO
             val esAnterior = fechaOtro.isBefore(fechaActual) || (
@@ -154,6 +171,19 @@ class PagosViewModel(application: Application) : AndroidViewModel(application) {
         }
         if (tieneAnterior) return "Primero debes pagar el compromiso anterior de esta empresa"
         return null
+    }
+
+    /**
+     * Fecha de la siguiente cuota. Mantiene el dia de vencimiento original y,
+     * si quedo en el pasado, avanza hasta el primer mes futuro.
+     */
+    private fun calcularSiguienteVencimiento(fechaActual: LocalDate): LocalDate {
+        var siguiente = fechaActual.plusMonths(1)
+        val hoy = LocalDate.now()
+        while (siguiente.isBefore(hoy)) {
+            siguiente = siguiente.plusMonths(1)
+        }
+        return siguiente
     }
 
     /**
@@ -178,12 +208,18 @@ class PagosViewModel(application: Application) : AndroidViewModel(application) {
 
     fun pagarCompromiso(id: Long): String? = runBlocking(Dispatchers.IO) {
         refrescarVencimientosInternal()
-        val compromiso = obtenerCompromiso(id) ?: return@runBlocking "Compromiso no encontrado"
-        val error = validarPago(compromiso)
+
+        val userId = currentUserId()
+        val compromisosUsuario = compromisoRepo.getByUsuario(userId).first()
+        val compromiso = compromisosUsuario.find { it.id == id }
+            ?: return@runBlocking "Compromiso no encontrado"
+
+        val pagosActuales = pagoRepo.getAllSync()
+        val error = validarPagoInterno(compromiso, compromisosUsuario, pagosActuales)
         if (error != null) return@runBlocking error
 
-        val siguienteId = (_pagos.value.maxOfOrNull { it.id } ?: 0L) + 1L
-        val siguienteFolio = (_pagos.value.maxOfOrNull {
+        val siguienteId = (pagosActuales.maxOfOrNull { it.id } ?: 0L) + 1L
+        val siguienteFolio = (pagosActuales.maxOfOrNull {
             it.numeroComprobante.removePrefix("CPR-").toLongOrNull() ?: 0L
         } ?: 0L) + 1L
         val numeroComprobante = "CPR-${siguienteFolio.toString().padStart(6, '0')}"
@@ -195,10 +231,9 @@ class PagosViewModel(application: Application) : AndroidViewModel(application) {
 
         val cuotaActual = compromiso.numeroCuota
         val totalCuotas = compromiso.totalCuotas
-        val esMulticuota = cuotaActual != null &&
+        val tieneSiguienteCuota = cuotaActual != null &&
                 totalCuotas != null &&
                 cuotaActual < totalCuotas
-        val siguienteCuota = if (esMulticuota) cuotaActual + 1 else cuotaActual
 
         val nuevoPago = Pago(
             id = siguienteId,
@@ -214,21 +249,33 @@ class PagosViewModel(application: Application) : AndroidViewModel(application) {
         )
         pagoRepo.insert(nuevoPago)
 
-        // Con cuotas pendientes el compromiso sigue activo y avanza a la
-        // siguiente cuota; solo se marca PAGADO al pagar la ultima.
+        // La cuota pagada queda siempre en PAGADO para que aparezca en el
+        // filtro "Pagados". Si el compromiso tiene mas cuotas, se registra la
+        // siguiente como una fila PENDIENTE independiente; asi el panel
+        // ejecutivo sigue contando el saldo real por cobrar.
         compromisoRepo.update(
             compromiso.copy(
-                estado = if (esMulticuota) EstadoCompromiso.PENDIENTE else EstadoCompromiso.PAGADO,
-                folioUnico = folioUnicoCompromiso,
-                numeroCuota = siguienteCuota,
-                fechaVencimiento = if (esMulticuota) {
-                    LocalDate.now().plusMonths(1).format(formatoFecha)
-                } else {
-                    compromiso.fechaVencimiento
-                },
-                recargoAplicado = if (esMulticuota) 0 else compromiso.recargoAplicado
+                estado = EstadoCompromiso.PAGADO,
+                folioUnico = folioUnicoCompromiso
             )
         )
+
+        if (tieneSiguienteCuota) {
+            val fechaSiguiente = calcularSiguienteVencimiento(
+                LocalDate.parse(compromiso.fechaVencimiento, formatoFecha)
+            )
+            compromisoRepo.insert(
+                compromiso.copy(
+                    id = compromisoRepo.nextId(),
+                    numeroCuota = cuotaActual + 1,
+                    fechaVencimiento = fechaSiguiente.format(formatoFecha),
+                    estado = EstadoCompromiso.PENDIENTE,
+                    recargoAplicado = 0,
+                    motivoAnulacion = null,
+                    folioUnico = FolioGenerator.generar()
+                )
+            )
+        }
         null
     }
 
