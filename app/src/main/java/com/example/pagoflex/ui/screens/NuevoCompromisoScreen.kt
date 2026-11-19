@@ -35,6 +35,7 @@ import com.example.pagoflex.ui.styles.BotonSecundario
 import com.example.pagoflex.ui.styles.EstiloCampo
 import com.example.pagoflex.ui.styles.EstilosTarjeta
 import com.example.pagoflex.ui.styles.formatearPesos
+import com.example.pagoflex.viewmodel.CalendarioCompromisos
 import com.example.pagoflex.viewmodel.NuevoCompromisoViewModel
 
 private val tiposCompromiso = listOf(
@@ -62,7 +63,6 @@ fun NuevoCompromisoScreen(
     val errorConcepto by vm.errorConcepto.collectAsStateWithLifecycle()
     val errorMonto by vm.errorMonto.collectAsStateWithLifecycle()
     val errorCuotas by vm.errorCuotas.collectAsStateWithLifecycle()
-    val errorFecha by vm.errorFecha.collectAsStateWithLifecycle()
     val errorGeneral by vm.errorGeneral.collectAsStateWithLifecycle()
     val guardando by vm.guardando.collectAsStateWithLifecycle()
     val guardado by vm.guardado.collectAsStateWithLifecycle()
@@ -73,7 +73,6 @@ fun NuevoCompromisoScreen(
     var modoMonto by remember { mutableStateOf("POR_CUOTA") }
     var montoTexto by remember { mutableStateOf("") }
     var cuotasTexto by remember { mutableStateOf("1") }
-    var fecha by remember { mutableStateOf("") }
     var mostrarConfirmacion by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) { vm.reset() }
@@ -83,14 +82,28 @@ fun NuevoCompromisoScreen(
         }
     }
 
+    val esMontoTotal = modoMonto == "TOTAL"
     val montoIngresado = montoTexto.filter { it.isDigit() }.toIntOrNull()
-    val cuotasIngresadas = cuotasTexto.filter { it.isDigit() }.toIntOrNull()
-    val montoPorCuota = when {
-        montoIngresado == null || cuotasIngresadas == null || cuotasIngresadas < 1 -> null
-        modoMonto == "TOTAL" -> montoIngresado / cuotasIngresadas
-        else -> montoIngresado
+    val cuotasIngresadas = if (esMontoTotal) {
+        1
+    } else {
+        cuotasTexto.filter { it.isDigit() }.toIntOrNull()
     }
-    val totalEstimado = montoPorCuota?.let { it * (cuotasIngresadas ?: 1) }
+    // El monto por cuota siempre es el valor ingresado: con "Monto total" la
+    // unica cuota equivale al total; con "Monto por cuota" se multiplica por
+    // la cantidad de cuotas para obtener el total estimado.
+    val montoPorCuota = montoIngresado
+    val totalEstimado = montoPorCuota?.let { it * (cuotasIngresadas ?: 0) }
+    val calendario = remember(modoMonto, cuotasIngresadas) {
+        if (!esMontoTotal && (cuotasIngresadas == null || cuotasIngresadas < 1)) {
+            emptyList()
+        } else {
+            CalendarioCompromisos.vencimientos(modoMonto, cuotasIngresadas ?: 1)
+        }
+    }
+    val fechaCalculada = CalendarioCompromisos.formatear(
+        CalendarioCompromisos.primerVencimiento(modoMonto)
+    )
 
     Column(
         modifier = Modifier
@@ -158,7 +171,13 @@ fun NuevoCompromisoScreen(
             opciones = listOf("POR_CUOTA", "TOTAL"),
             textoOpcion = { if (it == "TOTAL") "Monto total" else "Monto por cuota" },
             seleccionado = if (modoMonto == "TOTAL") "Monto total" else "Monto por cuota",
-            onSeleccionar = { modoMonto = it }
+            onSeleccionar = { nuevoModo ->
+                modoMonto = nuevoModo
+                if (nuevoModo == "TOTAL") {
+                    cuotasTexto = "1"
+                    vm.limpiarErrorCuotas()
+                }
+            }
         )
 
         EstiloCampo.CampoTexto(
@@ -178,13 +197,16 @@ fun NuevoCompromisoScreen(
         EstiloCampo.MensajeError(errorMonto)
 
         EstiloCampo.CampoTexto(
-            value = cuotasTexto,
-            onValueChange = {
-                cuotasTexto = it.filter { c -> c.isDigit() }
-                vm.limpiarErrorCuotas()
+            value = if (esMontoTotal) "1" else cuotasTexto,
+            onValueChange = { nuevoValor ->
+                if (!esMontoTotal) {
+                    cuotasTexto = nuevoValor.filter { c -> c.isDigit() }
+                    vm.limpiarErrorCuotas()
+                }
             },
-            label = "Número de cuotas",
+            label = if (esMontoTotal) "Número de cuotas (fijo en 1)" else "Número de cuotas",
             placeholder = { Text("Ej.: 12") },
+            enabled = !esMontoTotal,
             isError = errorCuotas != null,
             keyboardOptions = KeyboardOptions(
                 keyboardType = KeyboardType.Number,
@@ -192,24 +214,32 @@ fun NuevoCompromisoScreen(
             )
         )
         EstiloCampo.MensajeError(errorCuotas)
+        if (esMontoTotal) {
+            Text(
+                text = "Con monto total el compromiso se registra en 1 sola cuota.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
 
         EstiloCampo.CampoTexto(
-            value = fecha,
-            onValueChange = {
-                fecha = it
-                vm.limpiarErrorFecha()
-            },
-            label = "Fecha de vencimiento",
-            placeholder = { Text("dd-MM-aaaa") },
-            isError = errorFecha != null,
-            keyboardOptions = KeyboardOptions(
-                keyboardType = KeyboardType.Text,
-                imeAction = ImeAction.Done
-            )
+            value = fechaCalculada,
+            onValueChange = {},
+            label = "Fecha de vencimiento (calculada)",
+            readOnly = true,
+            trailingIcon = { Text("Auto") }
         )
-        EstiloCampo.MensajeError(errorFecha)
+        Text(
+            text = if (esMontoTotal) {
+                "Se calcula automáticamente a 1 mes desde hoy."
+            } else {
+                "Primera cuota el día 5 del próximo mes; cada cuota siguiente mantiene el día 5."
+            },
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
 
-        if (montoPorCuota != null) {
+        if (montoPorCuota != null && cuotasIngresadas != null && cuotasIngresadas >= 1) {
             EstilosTarjeta.Tarjeta(
                 centrada = false,
                 color = MaterialTheme.colorScheme.surfaceVariant
@@ -220,7 +250,7 @@ fun NuevoCompromisoScreen(
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    text = "${cuotasIngresadas ?: 0} cuota(s) de ${formatearPesos(montoPorCuota)}",
+                    text = "$cuotasIngresadas cuota(s) de ${formatearPesos(montoPorCuota)}",
                     style = MaterialTheme.typography.bodyMedium
                 )
                 Text(
@@ -228,6 +258,49 @@ fun NuevoCompromisoScreen(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+            }
+        }
+
+        if (calendario.isNotEmpty()) {
+            EstilosTarjeta.Tarjeta(
+                centrada = false,
+                color = MaterialTheme.colorScheme.surfaceVariant
+            ) {
+                Text(
+                    text = "Calendario de vencimientos",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold
+                )
+                if (!esMontoTotal && calendario.size > 6) {
+                    calendario.take(3).forEachIndexed { indice, vencimiento ->
+                        Text(
+                            text = "Cuota ${indice + 1}: ${CalendarioCompromisos.formatear(vencimiento)}",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+                    Text(
+                        text = "…",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = "Cuota ${calendario.size}: ${
+                            CalendarioCompromisos.formatear(calendario.last())
+                        }",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                } else {
+                    calendario.forEachIndexed { indice, vencimiento ->
+                        Text(
+                            text = if (esMontoTotal) {
+                                "Pago único: ${CalendarioCompromisos.formatear(vencimiento)}"
+                            } else {
+                                "Cuota ${indice + 1}: ${CalendarioCompromisos.formatear(vencimiento)}"
+                            },
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+                }
             }
         }
 
@@ -253,8 +326,7 @@ fun NuevoCompromisoScreen(
                         detalle = detalle,
                         modoMonto = modoMonto,
                         montoTexto = montoTexto,
-                        cuotasTexto = cuotasTexto,
-                        fecha = fecha
+                        cuotasTexto = cuotasTexto
                     )
                 },
                 enabled = !guardando,

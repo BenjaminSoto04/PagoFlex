@@ -9,12 +9,43 @@ import com.example.pagoflex.data.repository.EmpresaRepository
 import com.example.pagoflex.data.repository.RepositoryProvider
 import com.example.pagoflex.model.Compromiso
 import com.example.pagoflex.model.EstadoCompromiso
-import com.example.pagoflex.ui.styles.parsearFecha
 import com.example.pagoflex.util.FolioGenerator
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+
+/**
+ * Calculo unico de vencimientos usado por el formulario y por el guardado.
+ *
+ * - Monto total: un unico pago que vence en un mes desde hoy.
+ * - Monto por cuota: la primera cuota vence el dia 5 del mes siguiente y las
+ *   siguientes mantienen el dia 5 mes a mes.
+ */
+object CalendarioCompromisos {
+    private val formatoFecha: DateTimeFormatter = DateTimeFormatter.ofPattern("dd-MM-uuuu")
+
+    fun primerVencimiento(modoMonto: String, hoy: LocalDate = LocalDate.now()): LocalDate =
+        if (modoMonto == "TOTAL") {
+            hoy.plusMonths(1)
+        } else {
+            hoy.plusMonths(1).withDayOfMonth(5)
+        }
+
+    fun vencimientos(
+        modoMonto: String,
+        cuotas: Int,
+        hoy: LocalDate = LocalDate.now()
+    ): List<LocalDate> {
+        val cantidad = if (modoMonto == "TOTAL") 1 else cuotas.coerceAtLeast(1)
+        val primera = primerVencimiento(modoMonto, hoy)
+        return (0 until cantidad).map { primera.plusMonths(it.toLong()) }
+    }
+
+    fun formatear(fecha: LocalDate): String = fecha.format(formatoFecha)
+}
 
 /**
  * Formulario de alta de compromisos del usuario. Genera el folio unico y deja
@@ -39,9 +70,6 @@ class NuevoCompromisoViewModel(application: Application) : AndroidViewModel(appl
     private val _errorCuotas = MutableStateFlow<String?>(null)
     val errorCuotas: StateFlow<String?> = _errorCuotas.asStateFlow()
 
-    private val _errorFecha = MutableStateFlow<String?>(null)
-    val errorFecha: StateFlow<String?> = _errorFecha.asStateFlow()
-
     private val _errorGeneral = MutableStateFlow<String?>(null)
     val errorGeneral: StateFlow<String?> = _errorGeneral.asStateFlow()
 
@@ -50,8 +78,6 @@ class NuevoCompromisoViewModel(application: Application) : AndroidViewModel(appl
 
     private val _guardado = MutableStateFlow(false)
     val guardado: StateFlow<Boolean> = _guardado.asStateFlow()
-
-    private val formatoFecha = Regex("^\\d{2}-\\d{2}-\\d{4}$")
 
     init {
         viewModelScope.launch {
@@ -66,14 +92,12 @@ class NuevoCompromisoViewModel(application: Application) : AndroidViewModel(appl
         detalle: String,
         modoMonto: String,
         montoTexto: String,
-        cuotasTexto: String,
-        fecha: String
+        cuotasTexto: String
     ) {
         _errorEmpresa.value = null
         _errorConcepto.value = null
         _errorMonto.value = null
         _errorCuotas.value = null
-        _errorFecha.value = null
         _errorGeneral.value = null
 
         if (userId <= 0) {
@@ -91,36 +115,35 @@ class NuevoCompromisoViewModel(application: Application) : AndroidViewModel(appl
             _errorMonto.value = "Ingresa un monto válido mayor a cero"
         }
 
-        val cuotas = cuotasTexto.filter { it.isDigit() }.toIntOrNull()
+        // "Monto total" siempre representa un pago unico: las cuotas quedan
+        // fijas en 1 sin importar lo que llegue desde el formulario.
+        val cuotas = if (modoMonto == "TOTAL") {
+            1
+        } else {
+            cuotasTexto.filter { it.isDigit() }.toIntOrNull()
+        }
         if (cuotas == null || cuotas < 1) {
             _errorCuotas.value = "Ingresa al menos 1 cuota"
         }
 
-        val fechaLimpia = fecha.trim()
-        if (!formatoFecha.matches(fechaLimpia) || parsearFecha(fechaLimpia) == null) {
-            _errorFecha.value = "Ingresa una fecha válida con formato dd-MM-aaaa"
-        }
-
-        val montoPorCuota = when {
-            montoIngresado == null || cuotas == null || cuotas < 1 -> 0
-            modoMonto == "TOTAL" && montoIngresado % cuotas != 0 -> {
-                _errorMonto.value = "El monto total debe ser divisible por el número de cuotas"
-                0
-            }
-            modoMonto == "TOTAL" -> montoIngresado / cuotas
-            else -> montoIngresado
+        val montoPorCuota = if (montoIngresado == null || cuotas == null || cuotas < 1) {
+            0
+        } else {
+            montoIngresado
         }
 
         val hayErrores = listOf(
             _errorEmpresa.value,
             _errorConcepto.value,
             _errorMonto.value,
-            _errorCuotas.value,
-            _errorFecha.value
+            _errorCuotas.value
         ).any { it != null }
         if (hayErrores || empresa == null || cuotas == null || montoPorCuota <= 0) return
 
         val concepto = if (detalle.isBlank()) tipo else "$tipo · ${detalle.trim()}"
+        val fechaVencimiento = CalendarioCompromisos.formatear(
+            CalendarioCompromisos.primerVencimiento(modoMonto)
+        )
 
         viewModelScope.launch {
             _guardando.value = true
@@ -137,7 +160,7 @@ class NuevoCompromisoViewModel(application: Application) : AndroidViewModel(appl
                         numeroCuota = 1,
                         totalCuotas = cuotas,
                         monto = montoPorCuota,
-                        fechaVencimiento = fechaLimpia,
+                        fechaVencimiento = fechaVencimiento,
                         estado = EstadoCompromiso.PENDIENTE,
                         recargoAplicado = 0,
                         folioUnico = FolioGenerator.generar()
@@ -156,14 +179,12 @@ class NuevoCompromisoViewModel(application: Application) : AndroidViewModel(appl
     fun limpiarErrorConcepto() { _errorConcepto.value = null }
     fun limpiarErrorMonto() { _errorMonto.value = null }
     fun limpiarErrorCuotas() { _errorCuotas.value = null }
-    fun limpiarErrorFecha() { _errorFecha.value = null }
 
     fun reset() {
         _errorEmpresa.value = null
         _errorConcepto.value = null
         _errorMonto.value = null
         _errorCuotas.value = null
-        _errorFecha.value = null
         _errorGeneral.value = null
         _guardado.value = false
     }
