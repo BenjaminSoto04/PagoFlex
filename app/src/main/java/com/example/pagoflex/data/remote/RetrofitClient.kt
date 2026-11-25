@@ -10,9 +10,13 @@ import java.util.concurrent.TimeUnit
  * Cliente Retrofit de la app.
  *
  * Todos los microservicios de PagoFlexMS se exponen en la misma maquina que
- * ejecuta el emulador, por lo que se usa `10.0.2.2` (loopback del host visto
- * desde el AVD):
+ * ejecuta el emulador. Segun como se conecte el emulador, usa UNO de estos HOST:
  *
+ * - "10.0.2.2"   -> loopback del PC visto desde el emulador (necesita firewall abierto)
+ * - "localhost"  -> solo si ejecutaste `adb reverse tcp:PUERTO tcp:PUERTO` por cada puerto
+ * - IP del PC    -> para un celular fisico (misma red WiFi), ej. "192.168.1.7"
+ *
+ * Puertos:
  * - usuarios      8083
  * - compromisos   8081
  * - agente        8082
@@ -22,8 +26,8 @@ import java.util.concurrent.TimeUnit
  */
 object RetrofitClient {
 
-    /** Host del backend. Para un dispositivo fisico, reemplazar por la IP del PC. */
-    private const val HOST = "http://192.168.1.7"
+    /** SOLO la direccion: sin "http://", sin puerto y sin "/" final. */
+    private const val HOST = "10.0.2.2"
 
     private const val PUERTO_USUARIOS = 8083
     private const val PUERTO_COMPROMISOS = 8081
@@ -87,7 +91,7 @@ object RetrofitClient {
     fun obtenerPagos(): PagosApiService = pagos
     fun obtenerReportes(): ReportesApiService = reportes
 
-    private fun url(puerto: Int): String = "$HOST:$puerto/"
+    private fun url(puerto: Int): String = "http://$HOST:$puerto/"
 
     private fun <T> crear(baseUrl: String, serviceInterface: Class<T>): T =
         Retrofit.Builder()

@@ -166,7 +166,8 @@ class AuthViewModel @JvmOverloads constructor(
                 telefono = telefono,
                 empresa = empresa,
                 preguntaSeguridad = preguntaSeguridad.trim(),
-                respuestaSeguridad = respuestaSeguridad.trim()
+                respuestaSeguridad = respuestaSeguridad.trim(),
+                comuna = comuna
             ).onSuccess { id ->
                 val user = repo.getById(id)
                 _currentUser.value = user
