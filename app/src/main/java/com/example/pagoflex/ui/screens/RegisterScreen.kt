@@ -58,6 +58,7 @@ fun RegisterScreen(
     var showPass by remember { mutableStateOf(false) }
     var showConfirm by remember { mutableStateOf(false) }
     var errorConfirm by remember { mutableStateOf<String?>(null) }
+    var errorComuna by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) {
         authViewModel.limpiarErrores()
@@ -188,6 +189,14 @@ fun RegisterScreen(
         )
         EstiloCampo.MensajeError(errorEmpresa)
 
+        EstiloCampo.CampoTexto(
+            value = "Santiago",
+            onValueChange = { authViewModel.limpiarErrorComuna() }, // Readonly comuna
+            label = "Comuna (opcional)",
+            readOnly = true,
+            enabled = false
+        )
+
         EstiloCampo.MensajeError(errorGeneral)
 
         BotonPrimario(
@@ -203,6 +212,7 @@ fun RegisterScreen(
                     rol = "USUARIO",
                     telefono = telefono.ifBlank { null },
                     empresa = empresa.ifBlank { null },
+                    comuna = it.Santiago.ifBlank { null },
                     preguntaSeguridad = preguntaSeguridad,
                     respuestaSeguridad = respuestaSeguridad
                 )

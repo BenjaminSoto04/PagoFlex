@@ -123,6 +123,7 @@ class AuthViewModel @JvmOverloads constructor(
         rol: String,
         telefono: String? = null,
         empresa: String? = null,
+        comuna: String? = null,
         preguntaSeguridad: String = "",
         respuestaSeguridad: String = ""
     ) {
