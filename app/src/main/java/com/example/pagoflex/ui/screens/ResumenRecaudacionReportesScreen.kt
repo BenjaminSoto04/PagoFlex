@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -15,9 +16,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -36,28 +34,99 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.pagoflex.data.local.entity.UserEntity
+import com.example.pagoflex.data.repository.Reporte
+import com.example.pagoflex.model.Compromiso
+import com.example.pagoflex.model.EstadoCompromiso
+import com.example.pagoflex.model.Pago
+import com.example.pagoflex.ui.styles.BotonPrimario
+import com.example.pagoflex.ui.styles.EstilosTarjeta
+import com.example.pagoflex.ui.styles.formatearFecha
+import com.example.pagoflex.ui.styles.formatearPesos
+import com.example.pagoflex.ui.styles.parsearFecha
+import com.example.pagoflex.viewmodel.EjecutivoViewModel
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+
+private val periodos = listOf("Semanal", "Mensual", "Anual")
 
 private data class ResumenPeriodo(
-    val nombre: String,
     val recaudado: Long,
     val pendiente: Long,
     val vencido: Long,
     val pagados: Int,
     val pendientes: Int,
-    val vencidos: Int
+    val vencidos: Int,
+    val desde: LocalDate,
+    val hasta: LocalDate
 )
 
-private data class ReporteInterno(
-    val titulo: String,
-    val descripcion: String,
-    val fecha: String,
-    val tipo: String
-)
+private fun calcularResumen(
+    periodo: String,
+    compromisos: List<Compromiso>,
+    pagos: List<Pago>
+): ResumenPeriodo {
+    val hoy = LocalDate.now()
+    val desde = when (periodo) {
+        "Semanal" -> hoy.minusDays(6)
+        "Mensual" -> hoy.minusDays(29)
+        else -> hoy.minusDays(364)
+    }
+
+    val pagosPeriodo = pagos.filter { pago ->
+        val fecha = parsearFecha(pago.fechaHora)
+        fecha != null && !fecha.isBefore(desde) && !fecha.isAfter(hoy)
+    }
+
+    val pendientes = compromisos.filter { it.estado == EstadoCompromiso.PENDIENTE }
+    val vencidos = compromisos.filter { it.estado == EstadoCompromiso.VENCIDO }
+
+    return ResumenPeriodo(
+        recaudado = pagosPeriodo.sumOf { it.montoPagado.toLong() },
+        pendiente = pendientes.sumOf { (it.monto + it.recargoAplicado).toLong() },
+        vencido = vencidos.sumOf { (it.monto + it.recargoAplicado).toLong() },
+        pagados = pagosPeriodo.size,
+        pendientes = pendientes.size,
+        vencidos = vencidos.size,
+        desde = desde,
+        hasta = hoy
+    )
+}
 
 @Composable
 fun ResumenRecaudacionReportesScreen(
-    onVolver: () -> Unit = {}
+    user: UserEntity? = null,
+    onVolver: () -> Unit = {},
+    ejecutivoViewModel: EjecutivoViewModel = viewModel()
 ) {
+    val compromisosTodos by ejecutivoViewModel.compromisos.collectAsStateWithLifecycle()
+    val pagosTodos by ejecutivoViewModel.pagos.collectAsStateWithLifecycle()
+    val reportesTodos by ejecutivoViewModel.reportes.collectAsStateWithLifecycle()
+    val usuarioActual by ejecutivoViewModel.usuarioActual.collectAsStateWithLifecycle()
+
+    val ejecutivo = user ?: usuarioActual
+    val empresaId = ejecutivo?.empresaId
+
+    val compromisos = remember(compromisosTodos, empresaId) {
+        if (empresaId == null) emptyList()
+        else compromisosTodos.filter { it.idEmpresa == empresaId }
+    }
+
+    val pagos = remember(pagosTodos, compromisos) {
+        val idsCompromisos = compromisos.map { it.id }.toSet()
+        pagosTodos.filter { it.idCompromiso in idsCompromisos }
+    }
+
+    val reportes = remember(reportesTodos, compromisos) {
+        val folios = compromisos.map { it.folio }.toSet()
+        reportesTodos.filter { it.compromiso in folios }
+    }
+
+    val nombreEmpresa = ejecutivo?.empresa?.takeIf { it.isNotBlank() }
+        ?: compromisos.firstOrNull()?.empresa
+
     var periodoSeleccionado by remember {
         mutableStateOf("Mensual")
     }
@@ -66,42 +135,9 @@ fun ResumenRecaudacionReportesScreen(
         mutableStateOf("")
     }
 
-    val resumenes = remember {
-        mapOf(
-            "Semanal" to ResumenPeriodo(
-                nombre = "Semanal",
-                recaudado = 480000L,
-                pendiente = 210000L,
-                vencido = 95000L,
-                pagados = 8,
-                pendientes = 4,
-                vencidos = 2
-            ),
-            "Mensual" to ResumenPeriodo(
-                nombre = "Mensual",
-                recaudado = 2450000L,
-                pendiente = 870000L,
-                vencido = 320000L,
-                pagados = 35,
-                pendientes = 12,
-                vencidos = 5
-            ),
-            "Anual" to ResumenPeriodo(
-                nombre = "Anual",
-                recaudado = 18500000L,
-                pendiente = 6200000L,
-                vencido = 1900000L,
-                pagados = 260,
-                pendientes = 78,
-                vencidos = 24
-            )
-        )
-    }
+    val resumen = calcularResumen(periodoSeleccionado, compromisos, pagos)
 
-    val resumen = resumenes[periodoSeleccionado]!!
-
-    val totalGestionado = resumen.recaudado +
-            resumen.pendiente + resumen.vencido
+    val totalGestionado = resumen.recaudado + resumen.pendiente + resumen.vencido
 
     val porcentajeRecaudado =
         if (totalGestionado > 0L) {
@@ -110,28 +146,8 @@ fun ResumenRecaudacionReportesScreen(
             0f
         }
 
-    val reportes = remember {
-        listOf(
-            ReporteInterno(
-                titulo = "Reporte de recaudacion",
-                descripcion = "Resumen de pagos recibidos y montos recaudados.",
-                fecha = "20/10/2026",
-                tipo = "Financiero"
-            ),
-            ReporteInterno(
-                titulo = "Compromisos pendientes",
-                descripcion = "Seguimiento de compromisos aun no pagados.",
-                fecha = "20/10/2026",
-                tipo = "Seguimiento"
-            ),
-            ReporteInterno(
-                titulo = "Compromisos vencidos",
-                descripcion = "Listado de compromisos con estado vencido.",
-                fecha = "20/10/2026",
-                tipo = "Control"
-            )
-        )
-    }
+    val formatoDiaMes = DateTimeFormatter.ofPattern("dd/MM")
+    val rangoPeriodo = "${resumen.desde.format(formatoDiaMes)} al ${resumen.hasta.format(formatoDiaMes)}"
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background
@@ -178,7 +194,7 @@ fun ResumenRecaudacionReportesScreen(
                     )
 
                     Text(
-                        text = "Resumen de recaudacion",
+                        text = nombreEmpresa ?: "Resumen de recaudación",
                         color = Color.White.copy(alpha = 0.85f),
                         fontSize = 13.sp
                     )
@@ -193,9 +209,8 @@ fun ResumenRecaudacionReportesScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .weight(1f),
-                contentPadding = androidx.compose.foundation.layout
-                    .PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
+                contentPadding = PaddingValues(12.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
 
                 item {
@@ -208,10 +223,19 @@ fun ResumenRecaudacionReportesScreen(
                     Spacer(modifier = Modifier.height(4.dp))
 
                     Text(
-                        text = "Consulta el estado de la recaudacion por periodo.",
+                        text = "Consulta el estado de la recaudación por periodo.",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 13.sp
                     )
+
+                    if (empresaId == null) {
+                        Text(
+                            text = "Tu usuario no tiene una empresa asignada, por lo que no hay datos para resumir.",
+                            color = MaterialTheme.colorScheme.error,
+                            fontSize = 12.sp,
+                            modifier = Modifier.padding(top = 4.dp)
+                        )
+                    }
                 }
 
                 // Selector de periodo
@@ -227,8 +251,7 @@ fun ResumenRecaudacionReportesScreen(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        listOf("Semanal", "Mensual", "Anual").forEach {
-                                periodo ->
+                        periodos.forEach { periodo ->
                             FilterChip(
                                 selected = periodoSeleccionado == periodo,
                                 onClick = {
@@ -239,14 +262,25 @@ fun ResumenRecaudacionReportesScreen(
                             )
                         }
                     }
+
+                    Text(
+                        text = "Recaudación considerada: $rangoPeriodo",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
                 }
 
                 // Total recaudado
                 item {
                     TarjetaIndicadorRecaudacion(
                         titulo = "Total recaudado",
-                        monto = formatearMonto(resumen.recaudado),
-                        descripcion = "${resumen.pagados} compromisos pagados",
+                        monto = formatearPesos(resumen.recaudado),
+                        descripcion = if (resumen.pagados == 1) {
+                            "1 pago registrado en el periodo"
+                        } else {
+                            "${resumen.pagados} pagos registrados en el periodo"
+                        },
                         colorIndicador = Color(0xFF2E7D32)
                     )
                 }
@@ -259,66 +293,59 @@ fun ResumenRecaudacionReportesScreen(
                     ) {
                         TarjetaMontoPequena(
                             titulo = "Pendiente",
-                            monto = formatearMonto(resumen.pendiente),
+                            monto = formatearPesos(resumen.pendiente),
                             colorIndicador = Color(0xFFB26A00),
                             modifier = Modifier.weight(1f)
                         )
 
                         TarjetaMontoPequena(
                             titulo = "Vencido",
-                            monto = formatearMonto(resumen.vencido),
+                            monto = formatearPesos(resumen.vencido),
                             colorIndicador = Color(0xFFC62828),
                             modifier = Modifier.weight(1f)
                         )
                     }
+
+                    Text(
+                        text = "Saldos vigentes a la fecha, de los compromisos de la empresa.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
                 }
 
                 // Porcentaje de recaudacion
                 item {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor =
-                                MaterialTheme.colorScheme.surfaceVariant
-                        )
+                    EstilosTarjeta.Tarjeta(
+                        color = MaterialTheme.colorScheme.surfaceVariant
                     ) {
-                        Column(
-                            modifier = Modifier.padding(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            Text(
-                                text = "Cumplimiento de recaudacion",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 16.sp
-                            )
+                        Text(
+                            text = "Cumplimiento de recaudación",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp
+                        )
 
-                            Text(
-                                text = "${(porcentajeRecaudado * 100).toInt()}%",
-                                fontSize = 28.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary
-                            )
+                        Text(
+                            text = "${(porcentajeRecaudado * 100).toInt()}%",
+                            fontSize = 28.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
 
-                            LinearProgressIndicator(
-                                progress = { porcentajeRecaudado },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(8.dp),
-                                color = MaterialTheme.colorScheme.primary,
-                                trackColor =
-                                    MaterialTheme.colorScheme.surface
-                            )
+                        LinearProgressIndicator(
+                            progress = { porcentajeRecaudado },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(8.dp),
+                            color = MaterialTheme.colorScheme.primary,
+                            trackColor = MaterialTheme.colorScheme.surface
+                        )
 
-                            Text(
-                                text = "Monto gestionado: ${
-                                    formatearMonto(totalGestionado)
-                                }",
-                                color =
-                                    MaterialTheme.colorScheme.onSurfaceVariant,
-                                fontSize = 13.sp
-                            )
-                        }
+                        Text(
+                            text = "Monto gestionado: ${formatearPesos(totalGestionado)}",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 13.sp
+                        )
                     }
                 }
 
@@ -356,33 +383,43 @@ fun ResumenRecaudacionReportesScreen(
                     Spacer(modifier = Modifier.height(4.dp))
 
                     Text(
-                        text = "Reportes internos",
+                        text = "Reportes de usuarios",
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold
                     )
 
                     Text(
-                        text = "Reportes disponibles para consulta.",
+                        text = "Reportes enviados por los usuarios de la empresa.",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 13.sp
                     )
                 }
 
-                items(reportes) { reporte ->
-                    TarjetaReporteInterno(reporte)
+                if (reportes.isEmpty()) {
+                    item {
+                        Text(
+                            text = "No hay reportes registrados para esta empresa.",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 13.sp
+                        )
+                    }
+                } else {
+                    items(reportes, key = { it.id }) { reporte ->
+                        TarjetaReporteInterno(reporte)
+                    }
                 }
 
-                // Generar reporte de demostracion
+                // Resumen del periodo
                 item {
-                    Button(
+                    BotonPrimario(
+                        text = "Generar resumen",
                         onClick = {
-                            mensajeReporte =
-                                "Reporte ${periodoSeleccionado.lowercase()} generado correctamente (demostracion)."
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("Generar reporte")
-                    }
+                            mensajeReporte = "Resumen ${periodoSeleccionado.lowercase()} " +
+                                    "($rangoPeriodo): recaudado ${formatearPesos(resumen.recaudado)}, " +
+                                    "pendiente ${formatearPesos(resumen.pendiente)}, " +
+                                    "vencido ${formatearPesos(resumen.vencido)}."
+                        }
+                    )
 
                     if (mensajeReporte.isNotEmpty()) {
                         Text(
@@ -396,7 +433,7 @@ fun ResumenRecaudacionReportesScreen(
                     Spacer(modifier = Modifier.height(8.dp))
 
                     Text(
-                        text = "Informacion demostrativa con datos ficticios.",
+                        text = "Información obtenida de la base de datos local de PagoFlex.",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 12.sp
                     )
@@ -413,39 +450,25 @@ private fun TarjetaIndicadorRecaudacion(
     descripcion: String,
     colorIndicador: Color
 ) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        ),
-        elevation = CardDefaults.cardElevation(
-            defaultElevation = 2.dp
+    EstilosTarjeta.Tarjeta {
+        Text(
+            text = titulo,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontSize = 14.sp
         )
-    ) {
-        Column(
-            modifier = Modifier.padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Text(
-                text = titulo,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontSize = 14.sp
-            )
 
-            Text(
-                text = monto,
-                fontSize = 27.sp,
-                fontWeight = FontWeight.Bold,
-                color = colorIndicador
-            )
+        Text(
+            text = monto,
+            fontSize = 27.sp,
+            fontWeight = FontWeight.Bold,
+            color = colorIndicador
+        )
 
-            Text(
-                text = descripcion,
-                fontSize = 13.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
+        Text(
+            text = descripcion,
+            fontSize = 13.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }
 
@@ -456,30 +479,23 @@ private fun TarjetaMontoPequena(
     colorIndicador: Color,
     modifier: Modifier = Modifier
 ) {
-    Card(
+    EstilosTarjeta.Tarjeta(
         modifier = modifier,
-        shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
-        )
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        relleno = PaddingValues(12.dp)
     ) {
-        Column(
-            modifier = Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Text(
-                text = titulo,
-                fontSize = 13.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+        Text(
+            text = titulo,
+            fontSize = 13.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
 
-            Text(
-                text = monto,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-                color = colorIndicador
-            )
-        }
+        Text(
+            text = monto,
+            fontSize = 18.sp,
+            fontWeight = FontWeight.Bold,
+            color = colorIndicador
+        )
     }
 }
 
@@ -492,7 +508,7 @@ private fun FilaEstadoReporte(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 7.dp),
+            .padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Surface(
@@ -518,68 +534,46 @@ private fun FilaEstadoReporte(
 
 @Composable
 private fun TarjetaReporteInterno(
-    reporte: ReporteInterno
+    reporte: Reporte
 ) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        ),
-        elevation = CardDefaults.cardElevation(
-            defaultElevation = 1.dp
+    EstilosTarjeta.Tarjeta(elevacion = 1.dp) {
+        Text(
+            text = reporte.tipo,
+            fontWeight = FontWeight.Bold,
+            fontSize = 15.sp
         )
-    ) {
-        Column(
-            modifier = Modifier.padding(15.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
+
+        Text(
+            text = reporte.descripcion,
+            fontSize = 13.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = reporte.titulo,
-                fontWeight = FontWeight.Bold,
-                fontSize = 15.sp
-            )
-
-            Text(
-                text = reporte.descripcion,
-                fontSize = 13.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+            Surface(
+                shape = RoundedCornerShape(6.dp),
+                color = MaterialTheme.colorScheme.secondaryContainer
             ) {
-                Surface(
-                    shape = RoundedCornerShape(6.dp),
-                    color = MaterialTheme.colorScheme.secondaryContainer
-                ) {
-                    Text(
-                        text = reporte.tipo,
-                        modifier = Modifier.padding(
-                            horizontal = 8.dp,
-                            vertical = 5.dp
-                        ),
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer
-                    )
-                }
-
                 Text(
-                    text = reporte.fecha,
+                    text = reporte.compromiso,
+                    modifier = Modifier.padding(
+                        horizontal = 8.dp,
+                        vertical = 5.dp
+                    ),
                     fontSize = 11.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSecondaryContainer
                 )
             }
+
+            Text(
+                text = formatearFecha(reporte.fecha),
+                fontSize = 11.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
-}
-
-private fun formatearMonto(monto: Long): String {
-    return "$" + monto.toString()
-        .reversed()
-        .chunked(3)
-        .joinToString(".")
-        .reversed()
 }

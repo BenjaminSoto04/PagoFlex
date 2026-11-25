@@ -1,5 +1,6 @@
 package com.example.pagoflex.data.local.entity
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 
@@ -10,5 +11,6 @@ data class ReporteEntity(
     val compromiso: String,
     val descripcion: String,
     val fecha: String,
-    val idUsuario: Long
+    val idUsuario: Long,
+    @ColumnInfo(defaultValue = "'PENDIENTE'") val estado: String = "PENDIENTE"
 )

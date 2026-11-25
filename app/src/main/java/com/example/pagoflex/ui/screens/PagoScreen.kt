@@ -12,6 +12,10 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 import com.example.pagoflex.data.session.SessionManager
+import com.example.pagoflex.ui.styles.BotonPrimario
+import com.example.pagoflex.ui.styles.BotonSecundario
+import com.example.pagoflex.ui.styles.BotonTexto
+import com.example.pagoflex.ui.styles.EstilosTarjeta
 import com.example.pagoflex.viewmodel.PagosViewModel
 import androidx.compose.ui.platform.LocalContext
 import com.example.pagoflex.model.EstadoCompromiso
@@ -62,10 +66,10 @@ fun PagoScreen(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(20.dp),
+            .padding(16.dp),
 
         verticalArrangement =
-            Arrangement.spacedBy(16.dp)
+            Arrangement.spacedBy(12.dp)
     ) {
 
         TextButton(onClick = onVolver) {
@@ -84,38 +88,29 @@ fun PagoScreen(
 
         } else {
 
-            // Buscar el comprobante generado
-            val comprobante = pagos.find {
-                it.idCompromiso == compromiso.id
-            }
+            // Buscar el ultimo comprobante generado
+            val comprobante = pagos
+                .filter { it.idCompromiso == compromiso.id }
+                .maxByOrNull { it.id }
 
-            // Comprobar si el compromiso ya fue pagado
+            // Comprobar si el compromiso ya fue pagado por completo
             val yaEstaPagado =
                 compromiso.estado == EstadoCompromiso.PAGADO
+
+            // Mostrar el exito cuando se acaba de pagar o cuando ya no hay
+            // cuotas pendientes por pagar.
+            val mostrarExito = pagoExitoso || yaEstaPagado
 
             // Comprobar si puede realizarse un nuevo pago
             val mensajeValidacion =
                 pagosViewModel.validarPago(compromiso)
 
-            if (yaEstaPagado && comprobante != null) {
+            if (comprobante != null && mostrarExito) {
 
                 // Pantalla de exito
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-
-                    colors = CardDefaults.cardColors(
-                        containerColor =
-                            MaterialTheme.colorScheme.primaryContainer
-                    )
+                EstilosTarjeta.Tarjeta(
+                    color = MaterialTheme.colorScheme.primaryContainer
                 ) {
-
-                    Column(
-                        modifier = Modifier.padding(20.dp),
-
-                        verticalArrangement =
-                            Arrangement.spacedBy(12.dp)
-                    ) {
-
                         Text(
                             text = if (pagoExitoso)
                                 "¡Pago registrado!"
@@ -137,6 +132,24 @@ fun PagoScreen(
                         )
 
                         Text(
+                            text = "Folio único: ${comprobante.folioUnico ?: "No asignado"}"
+                        )
+
+                        val cuotaTexto = if (
+                            comprobante.cuotaPagada != null &&
+                            compromiso.totalCuotas != null
+                        ) {
+                            "${comprobante.cuotaPagada} de ${compromiso.totalCuotas}"
+                        } else {
+                            null
+                        }
+                        if (cuotaTexto != null) {
+                            Text(
+                                text = "Cuota pagada: $cuotaTexto"
+                            )
+                        }
+
+                        Text(
                             text = "Fecha: ${comprobante.fechaHora}"
                         )
 
@@ -151,46 +164,24 @@ fun PagoScreen(
                         Text(
                             text = "Canal: ${comprobante.canal}"
                         )
-                    }
                 }
 
-                Button(
-                    onClick = {
-                        onVerComprobante(compromiso.id)
-                    },
+                BotonPrimario(
+                    text = "Ver comprobante completo",
+                    onClick = { onVerComprobante(compromiso.id) }
+                )
 
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-
-                    Text("Ver comprobante completo")
-                }
-
-                OutlinedButton(
-                    onClick = onVolver,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Volver al compromiso")
-                }
+                BotonSecundario(
+                    text = "Volver al compromiso",
+                    onClick = onVolver
+                )
 
             } else if (mensajeValidacion != null) {
 
                 // Mostrar por que no puede pagar
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-
-                    colors = CardDefaults.cardColors(
-                        containerColor =
-                            MaterialTheme.colorScheme.errorContainer
-                    )
+                EstilosTarjeta.Tarjeta(
+                    color = MaterialTheme.colorScheme.errorContainer
                 ) {
-
-                    Column(
-                        modifier = Modifier.padding(20.dp),
-
-                        verticalArrangement =
-                            Arrangement.spacedBy(12.dp)
-                    ) {
-
                         Text(
                             text = "No es posible realizar el pago",
                             style = MaterialTheme.typography.titleLarge,
@@ -201,27 +192,16 @@ fun PagoScreen(
                             text = mensajeValidacion
                         )
 
-                        TextButton(
+                        BotonTexto(
+                            text = "Volver al compromiso",
                             onClick = onVolver
-                        ) {
-                            Text("Volver al compromiso")
-                        }
-                    }
+                        )
                 }
 
             } else {
 
                 // Informacion del compromiso
-                Card(
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(
-                        modifier = Modifier.padding(20.dp),
-
-                        verticalArrangement =
-                            Arrangement.spacedBy(12.dp)
-                    ) {
-
+                EstilosTarjeta.Tarjeta {
                         Text(
                             text = compromiso.empresa,
                             style = MaterialTheme.typography.titleLarge,
@@ -269,11 +249,28 @@ fun PagoScreen(
                         )
 
                         Text("Medio: Pago simulado")
-                    }
+
+                        if (compromiso.numeroCuota != null && compromiso.totalCuotas != null) {
+                            Text(
+                                text = "Cuota a pagar: ${compromiso.numeroCuota} de ${compromiso.totalCuotas}"
+                            )
+                        }
+
+                        if (comprobante != null && !pagoExitoso) {
+                            val ultimaCuota = comprobante.cuotaPagada
+                            Text(
+                                text = if (ultimaCuota != null) {
+                                    "Último pago registrado: cuota $ultimaCuota (${comprobante.fechaHora})"
+                                } else {
+                                    "Último pago registrado: ${comprobante.fechaHora}"
+                                },
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
                 }
 
                 Text(
-                    text = "Este pago es una simulacion. No se cobrara dinero real.",
+                    text = "Este pago es una simulación. No se cobrará dinero real.",
                     style = MaterialTheme.typography.bodySmall
                 )
 
@@ -287,11 +284,9 @@ fun PagoScreen(
                 }
 
                 // Confirmar el pago
-                Button(
-                    modifier = Modifier.fillMaxWidth(),
-
+                BotonPrimario(
+                    text = "Confirmar pago simulado",
                     onClick = {
-
                         val resultado =
                             pagosViewModel.pagarCompromiso(
                                 compromiso.id
@@ -307,19 +302,13 @@ fun PagoScreen(
                             mensajeError = resultado
                         }
                     }
-                ) {
-
-                    Text("Confirmar pago simulado")
-                }
+                )
 
                 // Cancelar sin registrar
-                OutlinedButton(
-                    modifier = Modifier.fillMaxWidth(),
+                BotonSecundario(
+                    text = "Cancelar",
                     onClick = onVolver
-                ) {
-
-                    Text("Cancelar")
-                }
+                )
             }
         }
     }

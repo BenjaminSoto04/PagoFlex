@@ -8,5 +8,7 @@ data class Pago(
     val montoPagado: Int,
     val canal: String,
     val medioPago: String,
-    val fotoUri: String? = null
+    val folioUnico: String? = null,
+    val cuotaPagada: Int? = null,
+    val fechaVencimientoCuota: String? = null
 )

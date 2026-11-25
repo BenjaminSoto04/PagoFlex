@@ -5,6 +5,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -13,6 +14,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 import com.example.pagoflex.data.session.SessionManager
 import com.example.pagoflex.model.EstadoCompromiso
+import com.example.pagoflex.ui.styles.BotonPrimario
+import com.example.pagoflex.ui.styles.EstilosTarjeta
 import com.example.pagoflex.viewmodel.PagosViewModel
 import androidx.compose.ui.platform.LocalContext
 
@@ -42,6 +45,10 @@ fun DetalleCompromisoScreen(
                 it.idUsuario == currentUserId
     }
 
+    LaunchedEffect(idCompromiso) {
+        pagosViewModel.asegurarFolioCompromiso(idCompromiso)
+    }
+
     // Comprobar si existe
     if (compromiso == null) {
 
@@ -56,9 +63,7 @@ fun DetalleCompromisoScreen(
 
             Text("Compromiso no encontrado")
 
-            Button(onClick = onVolver) {
-                Text("Volver")
-            }
+            BotonPrimario(text = "Volver", onClick = onVolver, anchoCompleto = false)
         }
 
         return
@@ -82,7 +87,7 @@ fun DetalleCompromisoScreen(
 
         EstadoCompromiso.PAGADO -> "Pagado"
 
-        EstadoCompromiso.EN_REVISION -> "En revision"
+        EstadoCompromiso.EN_REVISION -> "En revisión"
 
         EstadoCompromiso.ANULADO -> "Anulado"
     }
@@ -133,10 +138,10 @@ fun DetalleCompromisoScreen(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(20.dp),
+            .padding(16.dp),
 
         verticalArrangement =
-            Arrangement.spacedBy(16.dp)
+            Arrangement.spacedBy(12.dp)
     ) {
 
         // Boton de Volver
@@ -152,17 +157,7 @@ fun DetalleCompromisoScreen(
         )
 
         // Informacion principal
-        Card(
-            modifier = Modifier.fillMaxWidth()
-        ) {
-
-            Column(
-                modifier = Modifier.padding(20.dp),
-
-                verticalArrangement =
-                    Arrangement.spacedBy(12.dp)
-            ) {
-
+        EstilosTarjeta.Tarjeta {
                 Text(
                     text = compromiso.empresa,
                     style = MaterialTheme.typography.titleLarge,
@@ -207,6 +202,10 @@ fun DetalleCompromisoScreen(
                 )
 
                 Text(
+                    text = "Folio único: ${compromiso.folioUnico ?: "Generando..."}"
+                )
+
+                Text(
                     text = "Cuota: $cuota"
                 )
 
@@ -225,7 +224,7 @@ fun DetalleCompromisoScreen(
                 ) {
 
                     Text(
-                        text = "Dias de atraso: $diasAtraso"
+                        text = "Días de atraso: $diasAtraso"
                     )
 
                     Text(
@@ -236,38 +235,22 @@ fun DetalleCompromisoScreen(
                         }"
                     )
                 }
-            }
         }
 
         // Mensaje de validacion
         if (mensajeValidacion != null) {
-
-            Card(
-                colors = CardDefaults.cardColors(
-                    containerColor =
-                        MaterialTheme.colorScheme.errorContainer
-                )
+            EstilosTarjeta.Tarjeta(
+                color = MaterialTheme.colorScheme.errorContainer
             ) {
-
-                Text(
-                    text = mensajeValidacion,
-                    modifier = Modifier.padding(16.dp)
-                )
+                Text(text = mensajeValidacion)
             }
         }
 
         // Boton de pago
-        Button(
-            onClick = {
-                onPagar(compromiso.id)
-            },
-
-            enabled = puedePagar,
-
-            modifier = Modifier.fillMaxWidth()
-        ) {
-
-            Text("Continuar al pago")
-        }
+        BotonPrimario(
+            text = "Continuar al pago",
+            onClick = { onPagar(compromiso.id) },
+            enabled = puedePagar
+        )
     }
 }

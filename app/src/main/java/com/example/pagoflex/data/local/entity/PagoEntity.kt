@@ -12,5 +12,9 @@ data class PagoEntity(
     val montoPagado: Int,
     val canal: String,
     val medioPago: String,
-    val fotoUri: String? = null
+    // Columna heredada de la version anterior; ya no se usa desde la app.
+    val fotoUri: String? = null,
+    val folioUnico: String? = null,
+    val cuotaPagada: Int? = null,
+    val fechaVencimientoCuota: String? = null
 )
