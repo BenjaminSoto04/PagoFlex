@@ -5,36 +5,56 @@ import com.example.pagoflex.data.model.ApiEmpresaRegistroRequest
 import com.example.pagoflex.data.model.ApiEmpresaResponse
 import com.example.pagoflex.data.remote.EmpresasApiService
 import com.example.pagoflex.data.remote.RetrofitClient
-import com.example.pagoflex.data.remote.ejecutarRemoto
 import com.example.pagoflex.data.remote.ejecutarRemotoConEspera
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.flow
 
 class EmpresaRepositoryImpl(
     private val apiService: EmpresasApiService = RetrofitClient.obtenerEmpresas()
 ) : EmpresaRepository {
 
+    private fun empresasPredeterminadas() = listOf(
+        EmpresaEntity(1, "EMP-001", "Enel Distribución Chile S.A.", "Enel", "96.800.570-7", "Electricidad", "contacto@enel.cl", "6006960000", 0),
+        EmpresaEntity(2, "EMP-002", "Aguas Andinas S.A.", "Aguas Andinas", "61.808.000-5", "Agua Potable", "clientes@aguasandinas.cl", "227312400", 0),
+        EmpresaEntity(3, "EMP-003", "Movistar Chile S.A.", "Movistar", "96.568.740-1", "Telecomunicaciones", "soporte@movistar.cl", "6006003000", 0),
+        EmpresaEntity(4, "EMP-004", "Metrogas S.A.", "Metrogas", "96.722.460-K", "Gas Natural", "atencion@metrogas.cl", "6003378000", 0)
+    )
+
     override fun getAll(): Flow<List<EmpresaEntity>> = flow {
         val response = apiService.listarTodos()
-        if (response.isSuccessful && response.body() != null) {
-            emit(response.body()!!.map { it.toEntity() })
+        val remotas = if (response.isSuccessful && response.body() != null) {
+            response.body()!!.map { it.toEntity() }
         } else {
-            emit(emptyList())
+            emptyList()
+        }
+        if (remotas.isNotEmpty()) {
+            emit(remotas)
+        } else {
+            val creadas = empresasPredeterminadas().mapNotNull { emp ->
+                try {
+                    val res = apiService.crear(emp.toRequest())
+                    if (res.isSuccessful) res.body()?.toEntity() else emp
+                } catch (_: Exception) {
+                    emp
+                }
+            }
+            emit(creadas)
         }
     }.catch { e ->
         if (e is kotlinx.coroutines.CancellationException) throw e
         e.printStackTrace()
-        emit(emptyList())
+        emit(empresasPredeterminadas())
     }
 
     override suspend fun getFirst(): EmpresaEntity? {
         return try {
             val response = apiService.listarTodos()
-            if (response.isSuccessful) response.body()?.firstOrNull()?.toEntity() else null
+            val primera = if (response.isSuccessful) response.body()?.firstOrNull()?.toEntity() else null
+            primera ?: empresasPredeterminadas().firstOrNull()
         } catch (e: Exception) {
             e.printStackTrace()
-            null
+            empresasPredeterminadas().firstOrNull()
         }
     }
 
@@ -97,6 +117,3 @@ class EmpresaRepositoryImpl(
         recargo = recargo
     )
 }
-
-
-

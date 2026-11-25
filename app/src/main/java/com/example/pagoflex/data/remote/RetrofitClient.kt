@@ -23,7 +23,7 @@ import java.util.concurrent.TimeUnit
 object RetrofitClient {
 
     /** Host del backend. Para un dispositivo fisico, reemplazar por la IP del PC. */
-    private const val HOST = "http://10.0.2.2"
+    private const val HOST = "http://localhost"
 
     private const val PUERTO_USUARIOS = 8083
     private const val PUERTO_COMPROMISOS = 8081
@@ -37,16 +37,16 @@ object RetrofitClient {
     }
 
     /**
-     * Timeouts cortos para que el fallback a Room ocurra rapido cuando el
-     * microservicio no esta levantado.
+     * Timeouts aumentados para evitar conexiones fallidas.
      */
     private val okHttpClient: OkHttpClient by lazy {
         OkHttpClient.Builder()
             .addInterceptor(loggingInterceptor)
-            .connectTimeout(5, TimeUnit.SECONDS)
-            .readTimeout(15, TimeUnit.SECONDS)
-            .writeTimeout(15, TimeUnit.SECONDS)
-            .callTimeout(20, TimeUnit.SECONDS)
+            .proxy(java.net.Proxy.NO_PROXY)
+            .connectTimeout(15, TimeUnit.SECONDS)
+            .readTimeout(30, TimeUnit.SECONDS)
+            .writeTimeout(30, TimeUnit.SECONDS)
+            .callTimeout(30, TimeUnit.SECONDS)
             .build()
     }
 
