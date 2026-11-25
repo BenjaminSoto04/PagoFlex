@@ -138,7 +138,10 @@ abstract class AppDatabase : RoomDatabase() {
         @Volatile private var datosExtendidosListos = false
         private val seedDeferred = CompletableDeferred<Unit>()
 
-        suspend fun awaitSeed() = seedDeferred.await()
+        suspend fun awaitSeed() {
+            if (INSTANCE == null) return
+            seedDeferred.await()
+        }
 
         fun getDatabase(context: Context): AppDatabase {
             val instance = INSTANCE ?: synchronized(this) {
