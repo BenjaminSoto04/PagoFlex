@@ -1,7 +1,5 @@
 package com.example.pagoflex.data.local.entity
 
-import androidx.room.Entity
-import androidx.room.PrimaryKey
 
 object PreguntasSeguridad {
     const val PREGUNTA_DEFAULT = "¿Cuál es el nombre de tu primera mascota?"
@@ -20,9 +18,8 @@ object PreguntasSeguridad {
     }
 }
 
-@Entity(tableName = "usuarios")
 data class UserEntity(
-    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val id: Long = 0,
     val codigo: String? = null,
     val nombre: String,
     val rut: String? = null,

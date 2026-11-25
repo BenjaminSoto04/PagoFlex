@@ -191,7 +191,7 @@ fun RegisterScreen(
 
         EstiloCampo.CampoTexto(
             value = "Santiago",
-            onValueChange = { authViewModel.limpiarErrorComuna() }, // Readonly comuna
+            onValueChange = {},
             label = "Comuna (opcional)",
             readOnly = true,
             enabled = false
@@ -212,7 +212,6 @@ fun RegisterScreen(
                     rol = "USUARIO",
                     telefono = telefono.ifBlank { null },
                     empresa = empresa.ifBlank { null },
-                    comuna = it.Santiago.ifBlank { null },
                     preguntaSeguridad = preguntaSeguridad,
                     respuestaSeguridad = respuestaSeguridad
                 )

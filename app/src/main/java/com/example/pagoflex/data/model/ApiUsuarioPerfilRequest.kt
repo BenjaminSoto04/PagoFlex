@@ -8,5 +8,6 @@ data class ApiUsuarioPerfilRequest(
     val email: String? = null,
     val telefono: String? = null,
     val preguntaSeguridad: String? = null,
-    val respuestaSeguridad: String? = null
+    val respuestaSeguridad: String? = null,
+    val fotoUri: String? = null
 )

@@ -62,7 +62,7 @@ fun PerfilScreen(
     val perfilContext = androidx.compose.ui.platform.LocalContext.current
     LaunchedEffect(user.empresaId) {
         if (!esUsuario && nombreEmpresa.isNullOrBlank() && user.empresaId != null) {
-            nombreEmpresa = com.example.pagoflex.data.repository.RepositoryProvider.database(perfilContext).empresaDao().getById(user.empresaId)?.nombreFantasia
+            nombreEmpresa = com.example.pagoflex.data.repository.RepositoryProvider.empresas(perfilContext).getById(user.empresaId)?.nombreFantasia
         }
     }
 

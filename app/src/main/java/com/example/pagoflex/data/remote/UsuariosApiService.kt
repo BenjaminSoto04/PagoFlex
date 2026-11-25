@@ -1,7 +1,9 @@
 package com.example.pagoflex.data.remote
 
 import com.example.pagoflex.data.model.ApiUsuarioActivoRequest
+import com.example.pagoflex.data.model.ApiUsuarioCambioContrasenaRequest
 import com.example.pagoflex.data.model.ApiUsuarioLoginRequest
+import com.example.pagoflex.data.model.ApiUsuarioResetContrasenaRequest
 import com.example.pagoflex.data.model.ApiUsuarioLoginResponse
 import com.example.pagoflex.data.model.ApiUsuarioPerfilRequest
 import com.example.pagoflex.data.model.ApiUsuarioRegistroRequest
@@ -59,4 +61,15 @@ interface UsuariosApiService {
         @Path("id") id: Long,
         @Body request: ApiUsuarioActivoRequest
     ): Response<ApiUsuarioLoginResponse>
+
+    @PUT("api/usuarios/{id}/contrasena")
+    suspend fun cambiarContrasena(
+        @Path("id") id: Long,
+        @Body request: ApiUsuarioCambioContrasenaRequest
+    ): Response<Unit>
+
+    @PUT("api/usuarios/reset-contrasena")
+    suspend fun resetContrasena(
+        @Body request: ApiUsuarioResetContrasenaRequest
+    ): Response<Unit>
 }

@@ -1,12 +1,20 @@
-package com.example.pagoflex.data.repository
+﻿package com.example.pagoflex.data.repository
 
-import com.example.pagoflex.data.local.AppDatabase
 import com.example.pagoflex.data.local.entity.PreguntasSeguridad
 import com.example.pagoflex.data.local.entity.UserEntity
+import com.example.pagoflex.data.model.ApiUsuarioActivoRequest
+import com.example.pagoflex.data.model.ApiUsuarioLoginRequest
 import com.example.pagoflex.data.model.ApiUsuarioLoginResponse
+import com.example.pagoflex.data.model.ApiUsuarioPerfilRequest
+import com.example.pagoflex.data.model.ApiUsuarioRegistroRequest
+import com.example.pagoflex.data.model.ApiUsuarioRolRequest
 import com.example.pagoflex.data.remote.RetrofitClient
 import com.example.pagoflex.data.remote.UsuariosApiService
+import com.example.pagoflex.data.remote.ejecutarRemoto
+import com.example.pagoflex.security.PasswordHasher
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.catch
 
 interface UserRepository {
     companion object {
@@ -37,7 +45,9 @@ interface UserRepository {
     suspend fun resetPassword(email: String, newPassword: String): Result<Unit>
 }
 
-class UserRepositoryImpl(private val db: AppDatabase, private val apiService: UsuariosApiService = RetrofitClient.obtenerUsuarios()) : UserRepository {
+class UserRepositoryImpl(
+    private val apiService: UsuariosApiService = RetrofitClient.obtenerUsuarios()
+) : UserRepository {
 
     override suspend fun register(
         nombre: String,
@@ -47,18 +57,15 @@ class UserRepositoryImpl(private val db: AppDatabase, private val apiService: Us
         telefono: String?,
         empresa: String?,
         preguntaSeguridad: String,
-        respuestaSeguridad: String,
-        rut: String? = null,
-        comuna: String? = null
+        respuestaSeguridad: String
     ): Result<Long> {
-        // Solo usamos la API Spring Boot sin fallback a Room
         val request = com.example.pagoflex.data.model.ApiUsuarioRegistroRequest(
             nombre = nombre.trim(),
-            rut = rut ?: "",
+            rut = "",
             email = email.trim().lowercase(),
             password = password,
             telefono = telefono ?: "+56 9 00000000",
-            comuna = comuna ?: "Santiago",
+            comuna = "Santiago",
             empresa = empresa ?: "",
             preguntaSeguridad = preguntaSeguridad.trim(),
             respuestaSeguridad = PreguntasSeguridad.normalizarRespuesta(respuestaSeguridad)
@@ -66,14 +73,13 @@ class UserRepositoryImpl(private val db: AppDatabase, private val apiService: Us
 
         return try {
             val response = apiService.registrar(request)
-            val responseBody = response.body()
-            if (response.isSuccessful && responseBody != null) {
-                // La API devuelve id=0, usamos el ID local para Room pero solo como referencia
-                Result.success(0L)
-            } else {
-                // La API responde con código de error
-                Result.failure(Exception("Error en registro: ${response.code()} - ${response.message()}"))
+            if (!response.isSuccessful) {
+                val mensaje = response.errorBody()?.string().orEmpty()
+                return Result.failure(Exception(mensaje.ifBlank { "Error del servidor (${response.code()})" }))
             }
+            val body = response.body()
+                ?: return Result.failure(Exception("Respuesta vacia del servidor"))
+            Result.success(body.id)
         } catch (e: Exception) {
             e.printStackTrace()
             Result.failure(e)
@@ -81,25 +87,16 @@ class UserRepositoryImpl(private val db: AppDatabase, private val apiService: Us
     }
 
     override suspend fun login(email: String, password: String): Result<UserEntity> {
-        // Solo usamos la API Spring Boot sin fallback a Room
-        val loginRequest = com.example.pagoflex.data.model.ApiUsuarioLoginRequest(
-            email = email.trim().lowercase(),
-            password = password
-        )
-
         return try {
+            val loginRequest = com.example.pagoflex.data.model.ApiUsuarioLoginRequest(
+                email = email.trim().lowercase(),
+                password = password
+            )
             val response = apiService.login(loginRequest)
-            if (response.isSuccessful && response.body() != null) {
-                Result.success(ApiResponseToEntityMapper.toUserEntity(response.body() ?: ApiUsuarioLoginResponse.empty()))
-            } else {
-                // La API devuelve errores con códigos específicos, mapeamos a excepciones
-                val codigo = response.code()
-                when (codigo) {
-                    401 -> Result.failure(IllegalArgumentException("Credenciales incorrectas"))
-                    403 -> Result.failure(IllegalStateException(UserRepository.MENSAJE_CUENTA_DESHABILITADA))
-                    else -> Result.failure(Exception("Error en login: $codigo"))
-                }
+            if (!response.isSuccessful || response.body() == null) {
+                return Result.failure(IllegalArgumentException("Usuario no encontrado"))
             }
+            Result.success(ApiResponseToEntityMapper.toUserEntity(response.body()!!))
         } catch (e: Exception) {
             e.printStackTrace()
             Result.failure(e)
@@ -107,45 +104,53 @@ class UserRepositoryImpl(private val db: AppDatabase, private val apiService: Us
     }
 
     override suspend fun getById(id: Long): UserEntity? {
-        // Intentar API primero, luego fallback a Room
-        try {
+        return try {
             val response = apiService.obtenerPorId(id)
             if (response.isSuccessful && response.body() != null) {
-                return ApiResponseToEntityMapper.toUserEntity(response.body() ?: ApiUsuarioLoginResponse.empty())
-            }
+                ApiResponseToEntityMapper.toUserEntity(response.body()!!)
+            } else null
         } catch (e: Exception) {
-            // Ignorar fallo de API
             e.printStackTrace()
+            null
         }
-
-        return db.userDao().getById(id)
     }
 
-    override suspend fun getByEmail(email: String): UserEntity? = 
-        try {
+    override suspend fun getByEmail(email: String): UserEntity? {
+        return try {
             val response = apiService.obtenerPorCorreo(email.trim())
             if (response.isSuccessful && response.body() != null) {
-                ApiResponseToEntityMapper.toUserEntity(response.body() ?: ApiUsuarioLoginResponse.empty())
-            } else {
-                db.userDao().getByEmail(email.trim())
-            }
+                ApiResponseToEntityMapper.toUserEntity(response.body()!!)
+            } else null
         } catch (e: Exception) {
             e.printStackTrace()
-            db.userDao().getByEmail(email.trim())
+            null
         }
+    }
 
-    override fun getAll(): Flow<List<UserEntity>> = db.userDao().getAll()
+    override fun getAll(): Flow<List<UserEntity>> = flow {
+        val response = apiService.listarTodos()
+        if (response.isSuccessful && response.body() != null) {
+            emit(response.body()!!.map(ApiResponseToEntityMapper::toUserEntity))
+        } else {
+            emit(emptyList())
+        }
+    }.catch { e ->
+        if (e is kotlinx.coroutines.CancellationException) throw e
+        e.printStackTrace()
+        emit(emptyList())
+    }
 
     override suspend fun updateProfile(user: UserEntity) {
-        // Para simplicidad, actualizamos directamente en Room (la API no tiene un endpoint PUT parcial)
-        // Esto es porque el perfil del usuario requiere actualización completa con los datos de la sesión
+        val request = com.example.pagoflex.data.model.ApiUsuarioPerfilRequest(
+            nombre = user.nombre,
+            email = user.email,
+            telefono = user.telefono,
+            preguntaSeguridad = user.preguntaSeguridad,
+            respuestaSeguridad = user.respuestaSeguridad,
+            fotoUri = user.fotoUri
+        )
         try {
-            val actualizado = user.copy(
-                fechaIncorporacion = if (user.fechaIncorporacion.isNullOrEmpty()) "01-01-2024" else user.fechaIncorporacion,
-                avisosDias = if (user.avisosDias == null) 3 else user.avisosDias,
-                activo = true // Mantenemos activo por defecto
-            )
-            db.userDao().update(actualizado)
+            apiService.actualizarPerfil(user.id, request)
         } catch (e: Exception) {
             e.printStackTrace()
         }
@@ -158,117 +163,149 @@ class UserRepositoryImpl(private val db: AppDatabase, private val apiService: Us
             return Result.failure(IllegalArgumentException("Rol invalido"))
         }
 
-        // Actualizamos directamente en Room, ya que la API requiere llamada separada para asignar empresa
-        val actualizado = when (nuevoRol) {
-            "EJECUTIVO" -> {
-                val empresa = user.empresaId?.let { db.empresaDao().getById(it) }
-                    ?: db.empresaDao().getFirst()
-                user.copy(
+        val empresaId = if (nuevoRol == "EJECUTIVO") {
+            try {
+                RetrofitClient.obtenerEmpresas().listarTodos().body()?.firstOrNull()?.id
+            } catch (e: Exception) {
+                null
+            }
+        } else null
+
+        val empresa = if (nuevoRol == "EJECUTIVO") {
+            try {
+                RetrofitClient.obtenerEmpresas().listarTodos().body()?.firstOrNull()?.nombreFantasia
+            } catch (e: Exception) {
+                null
+            }
+        } else null
+
+        return try {
+            val response = apiService.cambiarRol(
+                id,
+                com.example.pagoflex.data.model.ApiUsuarioRolRequest(
                     rol = nuevoRol,
-                    empresaId = empresa?.id ?: user.empresaId,
-                    empresa = empresa?.nombreFantasia ?: user.empresa,
-                    area = user.area?.takeIf { it.isNotBlank() } ?: "Cobranza",
-                    cargo = user.cargo?.takeIf { it.isNotBlank() } ?: "Ejecutivo"
+                    empresaId = empresaId,
+                    empresa = empresa
                 )
-            }
-
-            "AGENTE" -> user.copy(
-                rol = nuevoRol,
-                empresaId = null,
-                empresa = null,
-                area = user.area?.takeIf { it.isNotBlank() } ?: "Soporte",
-                cargo = user.cargo?.takeIf { it.isNotBlank() } ?: "Agente de soporte",
-                agenteAsignadoId = null
             )
-
-            else -> {
-                val agente = user.agenteAsignadoId
-                    ?: db.userDao().getDefaultByRol("AGENTE")?.id
-                user.copy(rol = nuevoRol, agenteAsignadoId = agente)
-            }
+            if (response.isSuccessful) Result.success(Unit)
+            else Result.failure(Exception("Error del servidor (${response.code()})"))
+        } catch (e: Exception) {
+            e.printStackTrace()
+            Result.failure(e)
         }
-        db.userDao().update(actualizado)
-        return Result.success(Unit)
     }
 
     override suspend fun updateRolConEmpresa(id: Long, empresaId: Long): Result<Unit> {
-        val user = getById(id) ?: return Result.failure(IllegalArgumentException("Usuario no encontrado"))
-        val empresa = db.empresaDao().getById(empresaId)
-            ?: return Result.failure(IllegalArgumentException("Empresa no encontrada"))
-
-        val actualizado = user.copy(
-            rol = "EJECUTIVO",
-            empresaId = empresa.id,
-            empresa = empresa.nombreFantasia,
-            area = user.area?.takeIf { it.isNotBlank() } ?: "Cobranza",
-            cargo = user.cargo?.takeIf { it.isNotBlank() } ?: "Ejecutivo"
-        )
-        db.userDao().update(actualizado)
-        return Result.success(Unit)
+        val empresaResponse = try {
+            RetrofitClient.obtenerEmpresas().obtenerPorId(empresaId)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            return Result.failure(e)
+        }
+        if (!empresaResponse.isSuccessful || empresaResponse.body() == null) {
+            return Result.failure(Exception("Empresa no encontrada"))
+        }
+        val empresa = empresaResponse.body()!!
+        return try {
+            val response = apiService.cambiarRol(
+                id,
+                com.example.pagoflex.data.model.ApiUsuarioRolRequest(
+                    rol = "EJECUTIVO",
+                    empresaId = empresa.id,
+                    empresa = empresa.nombreFantasia
+                )
+            )
+            if (response.isSuccessful) Result.success(Unit)
+            else Result.failure(Exception("Error del servidor (${response.code()})"))
+        } catch (e: Exception) {
+            e.printStackTrace()
+            Result.failure(e)
+        }
     }
 
     override suspend fun updateFoto(id: Long, fotoUri: String?) {
-        val existingUser = getById(id) ?: return
-        val actualizado = existingUser.copy(fotoUri = fotoUri)
-        db.userDao().update(actualizado)
+        val user = getById(id) ?: return
+        val request = com.example.pagoflex.data.model.ApiUsuarioPerfilRequest(
+            nombre = user.nombre,
+            email = user.email,
+            telefono = user.telefono,
+            preguntaSeguridad = user.preguntaSeguridad,
+            respuestaSeguridad = user.respuestaSeguridad,
+            fotoUri = fotoUri
+        )
+        try {
+            apiService.actualizarPerfil(id, request)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 
     override suspend fun updateActivo(id: Long, activo: Boolean): Result<Unit> {
-        val user = getById(id) ?: return Result.failure(IllegalArgumentException("Usuario no encontrado"))
-        db.userDao().updateActivo(user.id, activo)
-        return Result.success(Unit)
+        return try {
+            val response = apiService.cambiarActivo(id, com.example.pagoflex.data.model.ApiUsuarioActivoRequest(activo))
+            if (response.isSuccessful) Result.success(Unit)
+            else Result.failure(Exception("Error del servidor (${response.code()})"))
+        } catch (e: Exception) {
+            e.printStackTrace()
+            Result.failure(e)
+        }
     }
 
     override suspend fun changePassword(id: Long, oldPassword: String, newPassword: String): Result<Unit> {
-        val user = getById(id) ?: return Result.failure(IllegalArgumentException("Usuario no encontrado"))
-        if (!com.example.pagoflex.security.PasswordHasher.verify(oldPassword, user.salt, user.passwordHash)) {
-            return Result.failure(IllegalArgumentException("Contraseña actual incorrecta"))
+        return try {
+            val response = apiService.cambiarContrasena(id, com.example.pagoflex.data.model.ApiUsuarioCambioContrasenaRequest(oldPassword, newPassword))
+            if (response.isSuccessful) Result.success(Unit)
+            else Result.failure(Exception("Error del servidor (${response.code()})"))
+        } catch (e: Exception) {
+            e.printStackTrace()
+            Result.failure(e)
         }
-        val salt = com.example.pagoflex.security.PasswordHasher.generateSalt()
-        val hash = com.example.pagoflex.security.PasswordHasher.hash(newPassword, salt)
-        db.userDao().updatePassword(id, hash, salt)
-        return Result.success(Unit)
     }
 
     override suspend fun resetPassword(email: String, newPassword: String): Result<Unit> {
-        val user = getByEmail(email.trim()) ?: return Result.failure(IllegalArgumentException("Correo no registrado"))
-        val salt = com.example.pagoflex.security.PasswordHasher.generateSalt()
-        val hash = com.example.pagoflex.security.PasswordHasher.hash(newPassword, salt)
-        db.userDao().updatePassword(user.id, hash, salt)
-        return Result.success(Unit)
+        return try {
+            val response = apiService.resetContrasena(com.example.pagoflex.data.model.ApiUsuarioResetContrasenaRequest(email.trim(), newPassword))
+            if (response.isSuccessful) Result.success(Unit)
+            else Result.failure(Exception("Error del servidor (${response.code()})"))
+        } catch (e: Exception) {
+            e.printStackTrace()
+            Result.failure(e)
+        }
     }
 
-    // Objeto auxiliar para convertir respuestas API a UserEntity
     private object ApiResponseToEntityMapper {
         fun toUserEntity(response: com.example.pagoflex.data.model.ApiUsuarioLoginResponse): UserEntity {
-            val preguntaSeguridad = if (response.preguntaSeguridad.isNullOrEmpty()) 
-                PreguntasSeguridad.PREGUNTA_DEFAULT 
+            val preguntaSeguridad = if (response.preguntaSeguridad.isNullOrEmpty())
+                PreguntasSeguridad.PREGUNTA_DEFAULT
             else response.preguntaSeguridad
 
             return UserEntity(
                 id = response.id,
                 codigo = response.codigo,
                 nombre = response.nombre,
-                rut = response.rut ?: "",
+                rut = response.rut,
                 email = response.email,
-                passwordHash = "", // La API no envía contraseña hashada, usaremos una por defecto o hash del email
+                passwordHash = "",
                 salt = "",
                 rol = response.rol,
-                telefono = response.telefono ?: "+56 9 00000000",
-                comuna = response.comuna ?: "Santiago",
+                telefono = response.telefono,
+                comuna = response.comuna,
                 empresaId = response.empresaId,
                 area = response.area,
                 cargo = response.cargo,
                 activo = response.activo,
                 fechaIncorporacion = response.fechaIncorporacion,
                 avisosDias = if (response.avisosDias == null) 3 else response.avisosDias,
-                avisosActivos = if (response.avisosActivos) true else false, // Default activo
-                empresa = response.empresa ?: "",
+                avisosActivos = if (response.avisosActivos) true else false,
+                empresa = response.empresa,
                 agenteAsignadoId = response.agenteAsignadoId,
                 fotoUri = response.fotoUri,
                 preguntaSeguridad = preguntaSeguridad
             )
         }
     }
-
 }
+
+
+

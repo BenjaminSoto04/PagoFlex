@@ -1,11 +1,8 @@
 package com.example.pagoflex.data.local.entity
 
-import androidx.room.Entity
-import androidx.room.PrimaryKey
 
-@Entity(tableName = "pagos")
 data class PagoEntity(
-    @PrimaryKey val id: Long,
+    val id: Long = 0,
     val numeroComprobante: String,
     val idCompromiso: Long,
     val fechaHora: String,
