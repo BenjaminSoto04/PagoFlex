@@ -23,7 +23,7 @@ import java.util.concurrent.TimeUnit
 object RetrofitClient {
 
     /** Host del backend. Para un dispositivo fisico, reemplazar por la IP del PC. */
-    private const val HOST = "http://10.0.2.2"
+    private const val HOST = "http://192.168.1.7"
 
     private const val PUERTO_USUARIOS = 8083
     private const val PUERTO_COMPROMISOS = 8081

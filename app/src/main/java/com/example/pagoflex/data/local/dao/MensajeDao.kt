@@ -2,7 +2,9 @@ package com.example.pagoflex.data.local.dao
 
 import androidx.room.Dao
 import androidx.room.Insert
+import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Update
 import com.example.pagoflex.data.local.entity.MensajeEntity
 import kotlinx.coroutines.flow.Flow
 
@@ -13,6 +15,18 @@ interface MensajeDao {
 
     @Insert
     suspend fun insert(m: MensajeEntity): Long
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertIgnore(m: MensajeEntity): Long
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(m: MensajeEntity)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertAll(list: List<MensajeEntity>)
+
+    @Update
+    suspend fun update(m: MensajeEntity)
 
     @Query("SELECT COUNT(*) FROM mensajes WHERE idConversacion = :convId AND rolRemitente = 'SISTEMA'")
     suspend fun countSistema(convId: Long): Int

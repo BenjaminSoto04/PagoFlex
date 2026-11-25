@@ -49,7 +49,6 @@ class UserRepositoryImpl(private val db: AppDatabase, private val apiService: Us
         preguntaSeguridad: String,
         respuestaSeguridad: String
     ): Result<Long> {
-        // Intentar API primero, luego fallback a Room
         val request = com.example.pagoflex.data.model.ApiUsuarioRegistroRequest(
             nombre = nombre.trim(),
             email = email.trim().lowercase(),
@@ -60,45 +59,17 @@ class UserRepositoryImpl(private val db: AppDatabase, private val apiService: Us
             respuestaSeguridad = PreguntasSeguridad.normalizarRespuesta(respuestaSeguridad)
         )
 
-        try {
-            // Prueba API remota
-            val response = apiService.registrar(request)
-            if (response.body() != null) {
-                return Result.success(0L) // No usamos el ID de la API, siempre insertamos en Room
-            }
-        } catch (e: Exception) {
-            // Fallo en API, continuar con Room
-        }
-
         return try {
-            // Fallback a Room
-            AppDatabase.awaitSeed()
-            val correoNormalizado = email.trim().lowercase()
-            val existing = db.userDao().getByEmail(correoNormalizado)
-            if (existing != null) return Result.failure(IllegalArgumentException("El correo ya está registrado"))
-            val salt = com.example.pagoflex.security.PasswordHasher.generateSalt()
-            val hash = com.example.pagoflex.security.PasswordHasher.hash(password, salt)
-            val rolAsignado = "USUARIO"
-            val agentePorDefecto = db.userDao().getDefaultByRol("AGENTE")?.id
-            val id = db.userDao().insert(
-                UserEntity(
-                    nombre = nombre.trim(),
-                    email = correoNormalizado,
-                    passwordHash = hash,
-                    salt = salt,
-                    rol = rolAsignado,
-                    telefono = telefono ?: "+56 9 00000000",
-                    rut = null,
-                    comuna = "Santiago",
-                    fechaIncorporacion = "01-01-2024",
-                    empresa = empresa,
-                    agenteAsignadoId = agentePorDefecto,
-                    preguntaSeguridad = preguntaSeguridad.trim(),
-                    respuestaSeguridad = PreguntasSeguridad.normalizarRespuesta(respuestaSeguridad)
-                )
-            )
-            Result.success(id)
+            val response = apiService.registrar(request)
+            if (!response.isSuccessful) {
+                val mensaje = response.errorBody()?.string().orEmpty()
+                return Result.failure(Exception(mensaje.ifBlank { "Error del servidor (${response.code()})" }))
+            }
+            val body = response.body()
+                ?: return Result.failure(Exception("Respuesta vacia del servidor"))
+            Result.success(body.id)
         } catch (e: Exception) {
+            e.printStackTrace()
             Result.failure(e)
         }
     }
@@ -147,6 +118,7 @@ class UserRepositoryImpl(private val db: AppDatabase, private val apiService: Us
             }
         } catch (e: Exception) {
             // Ignorar fallo de API
+            e.printStackTrace()
         }
 
         return db.userDao().getById(id)
