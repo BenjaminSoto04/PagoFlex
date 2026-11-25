@@ -22,6 +22,10 @@ interface PagoDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(p: PagoEntity)
 
+    /** Inserta o reemplaza filas (usado al sincronizar con el microservicio). */
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertAll(pagos: List<PagoEntity>)
+
     @Update
     suspend fun update(p: PagoEntity)
 }
