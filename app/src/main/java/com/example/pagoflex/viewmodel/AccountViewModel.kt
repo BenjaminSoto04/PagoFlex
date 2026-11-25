@@ -12,8 +12,11 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-class AccountViewModel(application: Application) : AndroidViewModel(application) {
-    private val repo: UserRepository = RepositoryProvider.users(application)
+class AccountViewModel @JvmOverloads constructor(
+    application: Application,
+    repo: UserRepository? = null
+) : AndroidViewModel(application) {
+    private val repo: UserRepository = repo ?: RepositoryProvider.users(application)
 
     private val _message = MutableStateFlow<String?>(null)
     val message: StateFlow<String?> = _message.asStateFlow()

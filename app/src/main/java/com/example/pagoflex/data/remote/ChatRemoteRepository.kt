@@ -65,7 +65,7 @@ class ChatRemoteRepository(
         return conversacionDao.getById(convId)
     }
 
-    override suspend fun getConversacionByIdLocal(convId: Long): ConversacionEntity? =
+    suspend fun getConversacionByIdLocal(convId: Long): ConversacionEntity? =
         conversacionDao.getById(convId)
 
     override suspend fun getOrCreateConversacion(userId: Long, fecha: String): Long {
