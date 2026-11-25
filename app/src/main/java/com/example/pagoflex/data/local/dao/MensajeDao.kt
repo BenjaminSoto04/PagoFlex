@@ -20,6 +20,12 @@ interface MensajeDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertAll(mensajes: List<MensajeEntity>)
 
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertIgnore(m: MensajeEntity): Long
+
+    @Update
+    suspend fun update(m: MensajeEntity)
+
     @Query("SELECT COUNT(*) FROM mensajes WHERE idConversacion = :convId AND rolRemitente = 'SISTEMA'")
     suspend fun countSistema(convId: Long): Int
 

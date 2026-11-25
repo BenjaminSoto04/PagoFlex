@@ -38,6 +38,12 @@ interface ConversacionDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertAll(conversaciones: List<ConversacionEntity>)
 
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertIgnore(c: ConversacionEntity): Long
+
+    @Update
+    suspend fun update(c: ConversacionEntity)
+
     @Query("UPDATE conversaciones SET estado = :estado WHERE id = :convId")
     suspend fun actualizarEstado(convId: Long, estado: String)
 

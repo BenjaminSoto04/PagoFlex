@@ -22,7 +22,9 @@ interface UserRepository {
         telefono: String? = null,
         empresa: String? = null,
         preguntaSeguridad: String = PreguntasSeguridad.PREGUNTA_DEFAULT,
-        respuestaSeguridad: String = PreguntasSeguridad.RESPUESTA_DEFAULT
+        respuestaSeguridad: String = PreguntasSeguridad.RESPUESTA_DEFAULT,
+        rut: String? = null,
+        comuna: String? = null
     ): Result<Long>
     suspend fun login(email: String, password: String): Result<UserEntity>
     suspend fun getById(id: Long): UserEntity?
@@ -48,8 +50,8 @@ class UserRepositoryImpl(private val db: AppDatabase, private val apiService: Us
         empresa: String?,
         preguntaSeguridad: String,
         respuestaSeguridad: String,
-        rut: String? = null,
-        comuna: String? = null
+        rut: String?,
+        comuna: String?
     ): Result<Long> {
         // Solo usamos la API Spring Boot sin fallback a Room
         val request = com.example.pagoflex.data.model.ApiUsuarioRegistroRequest(
@@ -121,7 +123,7 @@ class UserRepositoryImpl(private val db: AppDatabase, private val apiService: Us
         return db.userDao().getById(id)
     }
 
-    override suspend fun getByEmail(email: String): UserEntity? = 
+    override suspend fun getByEmail(email: String): UserEntity? =
         try {
             val response = apiService.obtenerPorCorreo(email.trim())
             if (response.isSuccessful && response.body() != null) {
@@ -241,8 +243,8 @@ class UserRepositoryImpl(private val db: AppDatabase, private val apiService: Us
     // Objeto auxiliar para convertir respuestas API a UserEntity
     private object ApiResponseToEntityMapper {
         fun toUserEntity(response: com.example.pagoflex.data.model.ApiUsuarioLoginResponse): UserEntity {
-            val preguntaSeguridad = if (response.preguntaSeguridad.isNullOrEmpty()) 
-                PreguntasSeguridad.PREGUNTA_DEFAULT 
+            val preguntaSeguridad = if (response.preguntaSeguridad.isNullOrEmpty())
+                PreguntasSeguridad.PREGUNTA_DEFAULT
             else response.preguntaSeguridad
 
             return UserEntity(
