@@ -2,9 +2,7 @@ package com.example.pagoflex.data.local.dao
 
 import androidx.room.Dao
 import androidx.room.Insert
-import androidx.room.OnConflictStrategy
 import androidx.room.Query
-import androidx.room.Update
 import com.example.pagoflex.data.local.entity.ConversacionEntity
 import kotlinx.coroutines.flow.Flow
 
@@ -30,12 +28,6 @@ interface ConversacionDao {
 
     @Insert
     suspend fun insert(c: ConversacionEntity): Long
-
-    @Insert(onConflict = OnConflictStrategy.IGNORE)
-    suspend fun insertIgnore(c: ConversacionEntity): Long
-
-    @Update
-    suspend fun update(c: ConversacionEntity)
 
     @Query("UPDATE conversaciones SET estado = :estado WHERE id = :convId")
     suspend fun actualizarEstado(convId: Long, estado: String)

@@ -28,6 +28,10 @@ interface CompromisoDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(c: CompromisoEntity)
 
+    /** Inserta o reemplaza filas (usado al sincronizar con el microservicio). */
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertAll(compromisos: List<CompromisoEntity>)
+
     @Update
     suspend fun update(c: CompromisoEntity)
 

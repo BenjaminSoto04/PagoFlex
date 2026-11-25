@@ -53,6 +53,7 @@ import com.example.pagoflex.ui.screens.ResumenRecaudacionReportesScreen
 import com.example.pagoflex.viewmodel.AccountViewModel
 import com.example.pagoflex.viewmodel.AuthViewModel
 import com.example.pagoflex.viewmodel.PagosViewModel
+import com.example.pagoflex.model.IndicadorViewModel
 
 @Composable
 fun AppNavegacion() {
@@ -61,6 +62,7 @@ fun AppNavegacion() {
     val authViewModel: AuthViewModel = viewModel()
     val pagosViewModel: PagosViewModel = viewModel()
     val accountViewModel: AccountViewModel = viewModel()
+    val indicadorViewModel: IndicadorViewModel = viewModel()
 
     val currentUser by authViewModel.currentUser.collectAsState()
 
@@ -164,6 +166,7 @@ fun AppNavegacion() {
                 } else {
                     InicioScreen(
                         pagosViewModel = pagosViewModel,
+                        indicadorViewModel = indicadorViewModel,
                         nombreUsuario = currentUser?.nombre,
                         onVerCompromisos = { navController.navigate(Ruta.Compromisos.ruta) },
                         onVerHistorial = { navController.navigate(Ruta.Historial.ruta) },

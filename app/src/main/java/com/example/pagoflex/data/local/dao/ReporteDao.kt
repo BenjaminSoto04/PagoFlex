@@ -2,6 +2,7 @@ package com.example.pagoflex.data.local.dao
 
 import androidx.room.Dao
 import androidx.room.Insert
+import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import com.example.pagoflex.data.local.entity.ReporteEntity
 import com.example.pagoflex.data.local.entity.ReporteMensajeEntity
@@ -11,6 +12,13 @@ import kotlinx.coroutines.flow.Flow
 interface ReporteDao {
     @Insert
     suspend fun insert(r: ReporteEntity): Long
+
+    /** Inserta o reemplaza respetando el id que llega del microservicio (reportes). */
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(r: ReporteEntity)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertAll(reportes: List<ReporteEntity>)
 
     @Query("SELECT * FROM reportes ORDER BY id DESC")
     fun getAll(): Flow<List<ReporteEntity>>
@@ -32,6 +40,13 @@ interface ReporteDao {
 
     @Insert
     suspend fun insertMensaje(m: ReporteMensajeEntity): Long
+
+    /** Inserta o reemplaza respetando el id que llega del microservicio (reportes). */
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertMensaje(m: ReporteMensajeEntity)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertMensajes(mensajes: List<ReporteMensajeEntity>)
 
     @Query("SELECT * FROM reporte_mensajes WHERE idReporte = :idReporte ORDER BY id ASC")
     fun getMensajes(idReporte: Long): Flow<List<ReporteMensajeEntity>>
