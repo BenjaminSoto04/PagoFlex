@@ -115,6 +115,7 @@ class UserRepositoryImpl(private val db: AppDatabase, private val apiService: Us
             }
         } catch (e: Exception) {
             // Ignorar fallo de API
+            e.printStackTrace()
         }
 
         return db.userDao().getById(id)

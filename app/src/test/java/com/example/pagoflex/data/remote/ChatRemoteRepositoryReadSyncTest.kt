@@ -34,6 +34,8 @@ class ChatRemoteRepositoryReadSyncTest {
         override suspend fun insert(c: ConversacionEntity): Long { val id = if (c.id == 0L) (store.keys.maxOrNull() ?: 0L) + 1 else c.id; store[id] = c.copy(id = id); return id }
         override suspend fun insertIgnore(c: ConversacionEntity): Long { if (store.containsKey(c.id)) return -1L; store[c.id] = c; return c.id }
         override suspend fun update(c: ConversacionEntity) { store[c.id] = c }
+        override suspend fun upsert(c: ConversacionEntity) { store[c.id] = c }
+        override suspend fun upsertAll(list: List<ConversacionEntity>) { list.forEach { store[it.id] = it } }
         override suspend fun actualizarEstado(convId: Long, estado: String) { store[convId]?.let { store[convId] = it.copy(estado = estado) } }
         override suspend fun deleteByUsuario(userId: Long) { store.entries.removeAll { it.value.idUsuario == userId } }
     }
@@ -44,6 +46,8 @@ class ChatRemoteRepositoryReadSyncTest {
         override suspend fun insert(m: MensajeEntity): Long { val id = if (m.id == 0L) (store.keys.maxOrNull() ?: 0L) + 1 else m.id; store[id] = m.copy(id = id); return id }
         override suspend fun insertIgnore(m: MensajeEntity): Long { if (store.containsKey(m.id)) return -1L; store[m.id] = m; return m.id }
         override suspend fun update(m: MensajeEntity) { store[m.id] = m }
+        override suspend fun upsert(m: MensajeEntity) { store[m.id] = m }
+        override suspend fun upsertAll(list: List<MensajeEntity>) { list.forEach { store[it.id] = it } }
         override suspend fun countSistema(convId: Long): Int = store.values.count { it.idConversacion == convId && it.rolRemitente == "SISTEMA" }
         override suspend fun deleteByUsuario(userId: Long) {}
     }

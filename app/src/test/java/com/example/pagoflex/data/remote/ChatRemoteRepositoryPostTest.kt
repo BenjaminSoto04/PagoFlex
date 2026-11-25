@@ -89,6 +89,14 @@ class ChatRemoteRepositoryPostTest {
             store[c.id] = c
         }
 
+        override suspend fun upsert(c: ConversacionEntity) {
+            store[c.id] = c
+        }
+
+        override suspend fun upsertAll(list: List<ConversacionEntity>) {
+            list.forEach { store[it.id] = it }
+        }
+
         override suspend fun actualizarEstado(convId: Long, estado: String) {
             store[convId]?.let { store[convId] = it.copy(estado = estado) }
         }
@@ -118,6 +126,14 @@ class ChatRemoteRepositoryPostTest {
 
         override suspend fun update(m: MensajeEntity) {
             store[m.id] = m
+        }
+
+        override suspend fun upsert(m: MensajeEntity) {
+            store[m.id] = m
+        }
+
+        override suspend fun upsertAll(list: List<MensajeEntity>) {
+            list.forEach { store[it.id] = it }
         }
 
         override suspend fun countSistema(convId: Long): Int =
