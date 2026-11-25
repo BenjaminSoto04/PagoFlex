@@ -47,27 +47,33 @@ class UserRepositoryImpl(private val db: AppDatabase, private val apiService: Us
         telefono: String?,
         empresa: String?,
         preguntaSeguridad: String,
-        respuestaSeguridad: String
+        respuestaSeguridad: String,
+        rut: String? = null,
+        comuna: String? = null
     ): Result<Long> {
+        // Solo usamos la API Spring Boot sin fallback a Room
         val request = com.example.pagoflex.data.model.ApiUsuarioRegistroRequest(
             nombre = nombre.trim(),
+            rut = rut ?: "",
             email = email.trim().lowercase(),
             password = password,
-            telefono = telefono,
-            empresa = empresa,
+            telefono = telefono ?: "+56 9 00000000",
+            comuna = comuna ?: "Santiago",
+            empresa = empresa ?: "",
             preguntaSeguridad = preguntaSeguridad.trim(),
             respuestaSeguridad = PreguntasSeguridad.normalizarRespuesta(respuestaSeguridad)
         )
 
         return try {
             val response = apiService.registrar(request)
-            if (!response.isSuccessful) {
-                val mensaje = response.errorBody()?.string().orEmpty()
-                return Result.failure(Exception(mensaje.ifBlank { "Error del servidor (${response.code()})" }))
+            val responseBody = response.body()
+            if (response.isSuccessful && responseBody != null) {
+                // La API devuelve id=0, usamos el ID local para Room pero solo como referencia
+                Result.success(0L)
+            } else {
+                // La API responde con código de error
+                Result.failure(Exception("Error en registro: ${response.code()} - ${response.message()}"))
             }
-            val body = response.body()
-                ?: return Result.failure(Exception("Respuesta vacia del servidor"))
-            Result.success(body.id)
         } catch (e: Exception) {
             e.printStackTrace()
             Result.failure(e)
@@ -75,36 +81,27 @@ class UserRepositoryImpl(private val db: AppDatabase, private val apiService: Us
     }
 
     override suspend fun login(email: String, password: String): Result<UserEntity> {
-        // Intentar API primero, luego fallback a Room
-        try {
-            val loginRequest = com.example.pagoflex.data.model.ApiUsuarioLoginRequest(
-                email = email.trim().lowercase(),
-                password = password
-            )
-
-            val response = apiService.login(loginRequest)
-            if (response.isSuccessful && response.body() != null) {
-                // Convertir respuesta API a UserEntity
-                return Result.success(ApiResponseToEntityMapper.toUserEntity(response.body() ?: ApiUsuarioLoginResponse.empty()))
-            }
-        } catch (e: Exception) {
-            // Fallo en API, continuar con Room
-            e.printStackTrace()
-        }
+        // Solo usamos la API Spring Boot sin fallback a Room
+        val loginRequest = com.example.pagoflex.data.model.ApiUsuarioLoginRequest(
+            email = email.trim().lowercase(),
+            password = password
+        )
 
         return try {
-            // Fallback a Room
-            AppDatabase.awaitSeed()
-            val user = db.userDao().getByEmail(email.trim().lowercase())
-                ?: return Result.failure(IllegalArgumentException("Usuario no encontrado"))
-            if (!user.activo) {
-                return Result.failure(IllegalStateException(UserRepository.MENSAJE_CUENTA_DESHABILITADA))
+            val response = apiService.login(loginRequest)
+            if (response.isSuccessful && response.body() != null) {
+                Result.success(ApiResponseToEntityMapper.toUserEntity(response.body() ?: ApiUsuarioLoginResponse.empty()))
+            } else {
+                // La API devuelve errores con códigos específicos, mapeamos a excepciones
+                val codigo = response.code()
+                when (codigo) {
+                    401 -> Result.failure(IllegalArgumentException("Credenciales incorrectas"))
+                    403 -> Result.failure(IllegalStateException(UserRepository.MENSAJE_CUENTA_DESHABILITADA))
+                    else -> Result.failure(Exception("Error en login: $codigo"))
+                }
             }
-            if (!com.example.pagoflex.security.PasswordHasher.verify(password, user.salt, user.passwordHash)) {
-                return Result.failure(IllegalArgumentException("Contraseña incorrecta"))
-            }
-            Result.success(user)
         } catch (e: Exception) {
+            e.printStackTrace()
             Result.failure(e)
         }
     }
@@ -252,13 +249,13 @@ class UserRepositoryImpl(private val db: AppDatabase, private val apiService: Us
                 id = response.id,
                 codigo = response.codigo,
                 nombre = response.nombre,
-                rut = response.rut,
+                rut = response.rut ?: "",
                 email = response.email,
-                passwordHash = "", // La API no envía contraseña hashada
+                passwordHash = "", // La API no envía contraseña hashada, usaremos una por defecto o hash del email
                 salt = "",
                 rol = response.rol,
-                telefono = response.telefono,
-                comuna = response.comuna,
+                telefono = response.telefono ?: "+56 9 00000000",
+                comuna = response.comuna ?: "Santiago",
                 empresaId = response.empresaId,
                 area = response.area,
                 cargo = response.cargo,
@@ -266,7 +263,7 @@ class UserRepositoryImpl(private val db: AppDatabase, private val apiService: Us
                 fechaIncorporacion = response.fechaIncorporacion,
                 avisosDias = if (response.avisosDias == null) 3 else response.avisosDias,
                 avisosActivos = if (response.avisosActivos) true else false, // Default activo
-                empresa = response.empresa,
+                empresa = response.empresa ?: "",
                 agenteAsignadoId = response.agenteAsignadoId,
                 fotoUri = response.fotoUri,
                 preguntaSeguridad = preguntaSeguridad

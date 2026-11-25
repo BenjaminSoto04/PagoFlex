@@ -7,12 +7,12 @@ import java.util.UUID
  */
 data class ApiUsuarioRegistroRequest(
     val nombre: String,
-    val rut: String? = null,
+    val rut: String,
     val email: String,
     val password: String,
-    val telefono: String? = null,
-    val comuna: String? = null,
-    val empresa: String? = null,
-    val preguntaSeguridad: String? = null,
-    val respuestaSeguridad: String? = null
+    val telefono: String,
+    val comuna: String,
+    val empresa: String,
+    val preguntaSeguridad: String,
+    val respuestaSeguridad: String
 )

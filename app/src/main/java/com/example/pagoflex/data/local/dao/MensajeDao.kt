@@ -16,17 +16,9 @@ interface MensajeDao {
     @Insert
     suspend fun insert(m: MensajeEntity): Long
 
-    @Insert(onConflict = OnConflictStrategy.IGNORE)
-    suspend fun insertIgnore(m: MensajeEntity): Long
-
+    /** Inserta o reemplaza respetando el id que llega del microservicio (agente). */
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun upsert(m: MensajeEntity)
-
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun upsertAll(list: List<MensajeEntity>)
-
-    @Update
-    suspend fun update(m: MensajeEntity)
+    suspend fun upsertAll(mensajes: List<MensajeEntity>)
 
     @Query("SELECT COUNT(*) FROM mensajes WHERE idConversacion = :convId AND rolRemitente = 'SISTEMA'")
     suspend fun countSistema(convId: Long): Int

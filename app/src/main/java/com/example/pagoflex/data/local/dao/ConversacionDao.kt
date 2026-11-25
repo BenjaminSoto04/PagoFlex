@@ -31,17 +31,12 @@ interface ConversacionDao {
     @Insert
     suspend fun insert(c: ConversacionEntity): Long
 
-    @Insert(onConflict = OnConflictStrategy.IGNORE)
-    suspend fun insertIgnore(c: ConversacionEntity): Long
-
+    /** Inserta o reemplaza respetando el id que llega del microservicio (agente). */
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(c: ConversacionEntity)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun upsertAll(list: List<ConversacionEntity>)
-
-    @Update
-    suspend fun update(c: ConversacionEntity)
+    suspend fun upsertAll(conversaciones: List<ConversacionEntity>)
 
     @Query("UPDATE conversaciones SET estado = :estado WHERE id = :convId")
     suspend fun actualizarEstado(convId: Long, estado: String)
